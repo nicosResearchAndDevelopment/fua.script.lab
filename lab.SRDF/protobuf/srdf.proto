@@ -1,0 +1,62 @@
+syntax = "proto3";
+package srdf;
+
+import "google/protobuf/any.proto";
+
+
+message Header {
+    string name = 1;
+    string value = 2;
+}
+
+message Message {
+    repeated Header header = 1;
+    string payload = 2;
+//    google.protobuf.Any payload = 2;
+//    string callback = 3;
+}
+
+message Dataproperty {
+    string type = 1;
+    string value = 2;
+    string label = 3;
+    string timestamp = 4;
+}
+
+message Namespace {
+    string prefix = 1;
+    string uri = 2;
+}
+
+message Subject {
+    string id = 1;
+}
+
+message Predicate {
+    string id = 1;
+}
+
+message Datatype {
+    string id = 1;
+}
+
+message Object {
+    string id = 1;
+    string lex = 2;
+    //    string datatype = 3;
+    Datatype datatype = 3;
+    string language = 4;
+}
+
+message Triple {
+    Subject subject = 1;
+    Predicate predicate = 2;
+    Object object = 3;
+}
+
+message Dataset {
+    repeated Namespace context = 1;
+    repeated Triple graph = 2;
+}
+
+//endregion decide

@@ -1,0 +1,74 @@
+syntax = "proto3";
+package idscp.store;
+
+import "google/protobuf/any.proto";
+
+
+message Message {
+    repeated Header header = 1;
+    Store store = 2;
+}
+
+message Header {
+    string name = 1;
+    string value = 2;
+}
+
+message Dataset {
+    repeated string value = 1;
+}
+
+message Attribute {
+    int32 name = 1;
+    int32 value = 2;
+    int32 type = 3;
+}
+
+message Property {
+    int32 id = 1;
+    int32 name = 2;
+    repeated Attribute attribute = 3;
+    repeated Context context = 4;
+}
+
+message Context {
+    int32 id = 1;
+    repeated Attribute attribute = 2;
+    repeated Property property = 3;
+    repeated Context context = 4;
+}
+
+message Subject {
+    int32 id = 1;
+    repeated Predicate predicate = 2;
+}
+message Predicate {
+    int32 id = 1;
+    repeated Object object = 2;
+}
+
+message Object {
+    int32 id = 1;
+    int32 lex = 2;
+    //    string datatype = 3;
+    int32 datatype = 3;
+    int32 language = 4;
+}
+
+//message Triple {
+//    int32 subject = 1;
+//    int32 predicate = 2;
+//    repeated Object object = 3;
+//}
+
+//message Store {
+//    Dataset dataset = 1;
+//    repeated Triple graph = 2;
+//}
+message Store {
+    repeated string dataset = 1;
+    repeated Context context = 2;
+    repeated Subject subject = 3;
+}
+
+//endregion decide
