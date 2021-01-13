@@ -211,7 +211,7 @@ async function main() {
     function resolveObject(obj, o, dataset, condensedGraph) {
 
         if (obj['@id']) {
-            o[index_id] = datase.index(obj['@id']);
+            o[index_id] = dataset.index(obj['@id']);
             resolveGraph([obj], dataset, condensedGraph);
         } else {
             if (obj['@value']) {

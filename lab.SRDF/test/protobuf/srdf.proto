@@ -1,0 +1,65 @@
+syntax = "proto3";
+package srdf;
+
+//import "google/protobuf/any.proto";
+
+
+message Message {
+    repeated Header header = 1;
+    SRDF srdf = 2;
+}
+
+
+message Header {
+    string name = 1;
+    string value = 2;
+}
+
+message SRDF {
+    V v = 1;
+    repeated S s = 2;
+}
+
+message V {
+    repeated Entity entities = 1;
+    repeated Entity_property entityProperties = 2;
+    repeated Value_property valueProperties = 3;
+    repeated Literal_value literalValues = 4;
+}
+message Entity {
+    string key = 1;
+    string entity = 2;
+    string type = 3;
+}
+message Entity_property {
+    string key = 1;
+    string property = 2;
+}
+message Value_property {
+    string key = 1;
+    string property = 2;
+    string type = 3;
+}
+message Literal_value {
+    string key = 1;
+    string value = 2;
+}
+
+message S {
+    string iri = 1;
+    repeated Entity_property_entity epe = 2;
+    repeated Value_property_value vpv = 3;
+    //    string property_value = 3;
+}
+
+message Entity_property_entity {
+    string pkj = 1; // REM: Entity Properties Key
+    string pki = 2; // REM: Entities Key
+}
+
+message Value_property_value {
+    string pkk = 1; // REM: Value Properties Key
+    string pkl = 2; // REM: Literal values Key
+}
+
+//endregion decide

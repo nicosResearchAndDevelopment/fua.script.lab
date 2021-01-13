@@ -1,11 +1,11 @@
-
 exports['graph'] = [
     {
-        '@id':             "https://www.nicos-rd.com/jlangkau",
-        '@type':           "foaf:Person",
-        'foaf:givenName':  "Jörg",
-        'foaf:familyName': "Langkau",
-        'age':             {'@type': "xsd:nonNegativeInteger", "@value": "58"}
+        '@id':   "https://www.nicos-rd.com/jlangkau",
+        '@type': "foaf:Person",
+        'rdfs:label': {"@value": "genau", "@language": "de"},
+        //'foaf:givenName':  "Jörg",
+        //'foaf:familyName': {"@type": "xsd:string", "@value": "Langkau"},
+        //'age':             {'@type': "xsd:nonNegativeInteger", "@value": "58"}
     }
     //, {
     //    '@id':             "https://www.nicos-rd.com/spetrac",
