@@ -26,20 +26,24 @@ message V {
     repeated Value_property valueProperties = 3;
     repeated Literal_value literalValues = 4;
 }
+
 message Entity {
     string key = 1;
     string entity = 2;
     string type = 3;
 }
+
 message Entity_property {
     string key = 1;
     string property = 2;
 }
+
 message Value_property {
     string key = 1;
     string property = 2;
     string type = 3;
 }
+
 message Literal_value {
     string key = 1;
     string value = 2;
@@ -61,5 +65,3 @@ message Value_property_value {
     string pkk = 1; // REM: Value Properties Key
     string pkl = 2; // REM: Literal values Key
 }
-
-//endregion decide
