@@ -475,7 +475,7 @@ Object.defineProperties(SRDF, {
                                 'entities':         [],
                                 'entityProperties': [],
                                 'valueProperties':  [],
-                                'literalValues':  []
+                                'literalValues':    []
                             },
                             's': []
                         }
@@ -528,3 +528,5 @@ Object.defineProperties(SRDF, {
 });
 
 exports['SRDF'] = SRDF;
+
+//EOF
