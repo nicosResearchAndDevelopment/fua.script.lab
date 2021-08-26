@@ -4,7 +4,8 @@ const date = () => new Date().toISOString();
 let hint   = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ";
 //hint           = "";
 
-module.exports = (parameter) => {
+//module.exports = (parameter) => {
+function test (parameter) {
 
     console.log(`${hint}${test_name} : start`);
 
@@ -24,6 +25,7 @@ module.exports = (parameter) => {
     console.timeEnd(`_set <${_length}>`);
 
     probe = 43;
+    probe = 42000;
 
     console.time(`probe <${probe}>`);
     console.log(`${hint}${test_name} : _set.has(${probe}) <${_set.has(probe)}>`);
@@ -31,3 +33,6 @@ module.exports = (parameter) => {
 
     return undefined;
 };
+
+test();
+debugger;
