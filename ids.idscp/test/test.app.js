@@ -37,19 +37,28 @@ module.exports = ({
         clients.set(client.id, client);
     });
 
+    server.on('data', (session, data) => {
+        debugger;
+        // REM : here we have to do all this application-stuff:
+        // - understand, what consumer request.
+        // - authorization on given assets
+    });
+
     const
         server_tls_certificates       = require(`./cert/server/tls-server/server.js`),
         client_tls_certificates       = require(`./cert/client/tls-server/server.js`),
         client_connector_certificates = require(`./cert/client/connector/client.js`)
     ;
-    server.listen(() => {
+    server.listen(async () => {
 
         try {
+            let result;
             //region client
             const
-                client = new Client({
-                    id:      "tls://bob.nicos-rd.com/",
-                    options: {
+                bob = new Client({
+                    id:           "tls://bob.nicos-rd.com/",
+                    DAT:          "BOB.123.abc",
+                    options:      {
                         cert:   client_connector_certificates,
                         socket: {
                             key:                client_tls_certificates.key,
@@ -62,20 +71,45 @@ module.exports = ({
                             port: 8080
                         }
                     }, // options
-                    proto:   proto
+                    proto:        proto,
+                    authenticate: async (token) => {
+                        let DAT = {};
+                        return DAT;
+                    }, // authenticate,
+                    //
+                    timeout_WAIT_FOR_HELLO: 60
                 })
             ; // const
-            client.on('event', (event) => {
+            bob.on('event', async (event) => {
                 console.log(JSON.stringify(event, "", "\t"));
+                if (event.step === "STATE_ESTABLISHED") {
+                    //debugger;
+                    let result = await bob.write(Buffer.from(JSON.stringify({mahl: "zeit"}), 'utf-8'));
+                } // if ()
             });
 
-            client.connect((that) => {
-
+            bob.connect((error, data) => {
+                //debugger;
             });
+            bob.on('error', (error) => {
+                debugger;
+            });
+            // REM : this will ONLY be triggered AFTER sucessfull initial handshake and will work on "real" data, only...
+            bob.on('data', (data) => {
+                debugger;
+            });
+            bob.on('end', (that) => {
+                debugger;
+            });
+            bob.on('error', (error) => {
+                debugger;
+            });
+
             //return;
         } catch (jex) {
             throw(jex);
         } // try
+
         //endregion client
 
     }); // listen

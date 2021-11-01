@@ -5,7 +5,7 @@ const
     util         = require('@nrd/fua.core.util'),
     uuid         = require("@nrd/fua.core.uuid"),
     //
-    idscpVersion = "2"
+    idscpVersion = 2
 ;
 
 exports.fsm = Object.freeze({
@@ -105,5 +105,34 @@ exports.fsm = Object.freeze({
         ACK_TIMEOUT:       "ACK_TIMEOUT"
     },
     idscpVersion: idscpVersion
-})
-;
+});
+
+exports.wait = (timeout, callback = () => {
+}) => {
+    let
+        sem,
+        _callback = callback
+    ;
+    const
+        runner    = (timeout, callback) => {
+            setTimeout(() => {
+                callback();
+            }, (timeout * 1000))
+        },
+        steer     = (timeout = -1) => {
+            clearTimeout(sem);
+            if (timeout > 0) {
+                sem = runner(timeout, _callback);
+                return steer;
+            } else {
+                return undefined; // REM : so, deleted and out of race
+            } // if ()
+
+        } // steer
+    ; // const
+
+    sem = runner(timeout, _callback);
+
+    return steer;
+
+};

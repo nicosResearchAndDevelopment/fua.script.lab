@@ -3,98 +3,49 @@ const
     path         = require('path'),
     EventEmitter = require('events'),
     tls          = require('tls'),
-
-    //protobuf         = require('my-protos'),
     //
-    //uuid             = require(path.join(process.env.FUA_JS_LIB, 'core.uuid/src/core.uuid.js')),
-    //util             = require(path.join(process.env.FUA_JS_LIB, 'core.util/src/core.util.js')),
+    protobuf     = require("protobufjs"),
+    //
     util         = require('@nrd/fua.core.util'),
     uuid         = require("@nrd/fua.core.uuid"),
     //
-    {fsm}        = require(`./ids.idscp.fsm`),
-    idscpVersion = "2"
-;
+    {fsm, wait}  = require(`./ids.idscp.fsm`),
+    {Session}    = require(`./ids.idscp.session`),
+    idscpVersion = 2
+; // const
 
-class Session extends EventEmitter {
-
-    #id;
-    #DAT;
-    #socket;
-
-    constructor({
-                    id:     id,
-                    DAT:    DAT,
-                    fsm:    fsm,
-                    proto:  proto,
-                    socket: socket
-                }) {
-
-        super(); // REM : EventEmitter
-
-        this.#id     = id;
-        this.#DAT    = DAT;
-        this.#socket = socket;
-
-        let client = this;
-
-        Object.defineProperties(client, {
-            id:   {
-                value: client.#id, enumerable: true
-            },
-            DAT:  {
-                get:           () => {
-                    return client.#DAT;
-                }, enumerable: true
-            },
-            send: {
-                value:         (data) => {
-                    if (client.#socket)
-                        client.#socket.write(data);
-                }, enumerable: false
-            }, // send
-            quit: {
-                value:         () => {
-                    if (client.#socket)
-                        client.#socket.end;
-                }, enumerable: false
-            } // quit
-        }); // Object.defineProperties()
-
-        let message = proto.IdscpHello.create({});
-        this.#socket.write(fsm);
-        this.#socket.on('data', (data) => {
-            client.emit('data', data)
-        });
-
-        return client;
-
-    } // constructor
-
-} // Session
-
-function timeout(id, clients, emit, seconds) {
+function timeout(id, sessions, callback, seconds) {
 
     // TODO : emitted by timeout
     //emit({
     //    id: id
     //});
+    let waiter = wait(seconds, () => {
+        callback(session);
+    });
     return () => {
 
     };
-}
+} // timeout()
 
 class Server extends EventEmitter {
 
     #id;
+    #DAT;
     #port;
     #tlsServer = null;
     #proto;
 
     constructor({
-                    id:      id,
-                    port:    port = 8080,
-                    options: options = null,
-                    proto:   proto = null
+                    id:           id,
+                    DAT:          DAT,
+                    port:         port = 8080,
+                    options:      options = null,
+                    proto:        proto = null,
+                    authenticate: authenticate,
+                    //
+                    timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO = 10,
+                    timeout_SESSION:        timeout_SESSION = 10
                 }) {
 
         super(); // REM EventEmitter
@@ -105,6 +56,7 @@ class Server extends EventEmitter {
         ;
 
         this.#id    = id;
+        this.#DAT   = DAT;
         this.#port  = port;
         this.#proto = proto;
 
@@ -113,48 +65,60 @@ class Server extends EventEmitter {
         // REM : https://nodejs.org/api/tls.html#tlscreateserveroptions-secureconnectionlistener
         this.#tlsServer = tls.createServer(options.tls, (socket) => {
 
-            this.emit('event', {
+            server.emit('event', {
                 id:        `${this.#id}event/${uuid.v1()}`,
                 timestamp: util.timestamp(),
                 prov:      `${this.#id}listen/}`,
                 step:      "tls-this.on.connect"
             });
 
-            // TODO : thsi should happen at the end fsm-run...
-            const session = new Session({
-                id:     `${this.#id}client/${uuid.v1()}`,
-                proto:  this.#proto,
-                fsm:    fsm,
-                socket: socket
-            });
-            session.on('event', (event) => {
-                this.emit('event', event);
-            });
-            sessions.set(session.id, {
-                // TODO : timeout >>> DAT.exp
-                timeout: timeout(
-                    session.id,
-                    clients,
-                    (client) => {
-                        this.emit('clientTimeout', client);
-                    },
-                    /** seconds */ 60),
-                session:  session
-            });
-            this.emit('connection', session);
-        });
+            //socket.setEncoding('utf8');
 
-        //this.#tlsServer.on('connect', (socket) => {
-        //
-        //});
+            // TODO : this should happen at the end fsm-run...
+            const
+                session = new Session({
+                    id:           `${this.#id}session/${uuid.v1()}`,
+                    DAT:          this.#DAT,
+                    proto:        this.#proto,
+                    fsm:          fsm,
+                    socket:       socket,
+                    authenticate: authenticate,
+                    //
+                    timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO,
+                    timeout_SESSION:        timeout_SESSION
+                }) // session
+            ; // const
+
+            session.on('event', (event) => {
+                server.emit('event', event);
+            });
+
+            // REM : fired ONLY, if it's running under <fsm.state.STATE_ESTABLISHED>
+            session.on('data', (data) => {
+                server.emit('data', session, data);
+            });
+
+            sessions.set(session.id, {session: session});
+            server.emit('connection', session);
+
+        }); // tls.createServer(options.tls)
+
         this.#tlsServer.on('error', (error) => {
-            //debugger;
+            debugger;
             error;
         });
 
         Object.defineProperties(server, {
             id:           {
-                value: this.#id, enumerable: true
+                value: server.#id, enumerable: true
+            },
+            DAT:          {
+                set: (dat) => {
+                    server.#DAT = dat;
+                },
+                get: () => {
+                    return server.#DAT;
+                }
             },
             listen:       {
                 value:      (
@@ -163,13 +127,13 @@ class Server extends EventEmitter {
                             ) => {
                     try {
                         let error = null;
-                        this.emit('event', {
-                            id:        `${this.#id}event/${uuid.v1()}`,
+                        server.emit('event', {
+                            id:        `${server.#id}event/${uuid.v1()}`,
                             timestamp: util.timestamp(),
-                            prov:      `${this.#id}listen/}`,
+                            prov:      `${server.#id}listen/}`,
                             step:      "before tls-server listens"
                         });
-                        this.#tlsServer.listen(this.#port, callback);
+                        server.#tlsServer.listen(server.#port, callback);
                         //return;
                     } catch (jex) {
                         debugger;
@@ -179,7 +143,7 @@ class Server extends EventEmitter {
                 enumerable: false
             },   // listen
             port:         {
-                value: this.#port, enumerable: true
+                value: server.#port, enumerable: true
             },
             idscpVersion: {
                 value: idscpVersion, enumerable: true
@@ -193,3 +157,5 @@ class Server extends EventEmitter {
 } // Server
 
 exports.Server = Server;
+
+// EOF
