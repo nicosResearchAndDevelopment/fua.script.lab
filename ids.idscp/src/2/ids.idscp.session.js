@@ -4,7 +4,7 @@ const
     EventEmitter = require('events'),
     tls          = require('tls'),
     //
-    protobuf     = require("protobufjs"),
+    //protobuf     = require("protobufjs"),
     //
     util         = require('@nrd/fua.core.util'),
     uuid         = require("@nrd/fua.core.uuid"),
@@ -34,17 +34,21 @@ class Session extends EventEmitter {
 
         super(); // REM : EventEmitter
 
-        this.#id     = id;
-        this.#state  = {
+        let session = this;
+
+        session.#id    = id;
+        session.#state = {
             type:    fsm.state.STATE_WAIT_FOR_HELLO,
             timeout: wait(timeout_WAIT_FOR_HELLO /** seconds */, () => {
-                socket.end();
+                if (session.#socket)
+                    session.#socket.end();
+                //debugger;
+                session.#socket = null;
             })
         };
-        this.#DAT    = DAT;
-        this.#socket = socket;
 
-        let session = this;
+        session.#DAT    = DAT;
+        session.#socket = socket;
 
         Object.defineProperties(session, {
             id:    {
@@ -60,13 +64,7 @@ class Session extends EventEmitter {
                     return session.#DAT;
                 }, enumerable: true
             },
-            //send:  {
-            //    value:         (data) => {
-            //        if (session.#socket)
-            //            session.#socket.write(data);
-            //    }, enumerable: false
-            //}, // send
-            quit: {
+            quit:  {
                 value:         () => {
                     if (session.#socket)
                         session.#socket.end();
@@ -74,15 +72,23 @@ class Session extends EventEmitter {
             } // quit
         }); // Object.defineProperties()
 
-        this.#socket.on('data', async (data) => {
+        session.#socket.on('data', async (data) => {
             try {
+                let
+                    error = null
+                ;
+
                 switch (session.#state.type) {
 
                     case fsm.state.STATE_WAIT_FOR_HELLO:
-                        // TODO : get it
-                        let _message = proto.IdscpHello.decode(data);
-                        let _token   = _message.dynamicAttributeToken.token.toString('utf-8');
-                        let peerDAT  = await authenticate(_token);
+
+                        let
+                            timeout,
+                            _message = proto.IdscpHello.decode(data),
+                            _token   = _message.dynamicAttributeToken.token.toString('utf-8'),
+                            peerDAT  = await authenticate(_token)
+                        ;
+
                         if (peerDAT) {
                             session.#state.timeout(/** default */ -1);
 
@@ -101,20 +107,33 @@ class Session extends EventEmitter {
                             session.#DAT = peerDAT;
 
                             // TODO : DAT.exp? internal seesion timeout?
-                            let timeout = timeout_SESSION;
+                            timeout        = timeout_SESSION;
                             session.#state = {
                                 type:    fsm.state.STATE_ESTABLISHED,
                                 timeout: wait(timeout /** seconds */, () => {
-                                    session.#DAT;
+                                    //debugger;
+                                    session.#state.type = fsm.state.STATE_CLOSED_LOCKED;
+                                    //session.#DAT;
                                     session.#socket.end();
+                                    session.#socket = null;
+                                    //session.emit('event', {
+                                    //    id:        `${session.#id}event/${uuid.v1()}`,
+                                    //    timestamp: util.timestamp(),
+                                    //    prov:      `${session.#id}session/state/timeout/}`,
+                                    //    step:      "STATE_ESTABLISHED"
+                                    //});
                                 })
                             }; // this.#state
-                            session.emit('event', {
-                                id:        `${session.#id}event/${uuid.v1()}`,
-                                timestamp: util.timestamp(),
-                                prov:      `${session.#id}listen/}`,
-                                step:      "STATE_ESTABLISHED"
-                            });
+
+                            //session.emit('event', {
+                            //    id:        `${session.#id}event/${uuid.v1()}`,
+                            //    timestamp: util.timestamp(),
+                            //    prov:      `${session.#id}listen/}`,
+                            //    step:      "STATE_ESTABLISHED",
+                            //    event:     fsm.state.STATE_ESTABLISHED
+                            //});
+                            session.emit(fsm.state.STATE_ESTABLISHED, session);
+
                         } // if
                         break; // fsm.state.STATE_WAIT_FOR_HELLO
 

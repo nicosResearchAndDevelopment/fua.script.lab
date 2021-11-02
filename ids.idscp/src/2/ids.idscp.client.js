@@ -37,94 +37,99 @@ class Client extends EventEmitter {
         let client = this;
 
         Object.defineProperties(client, {
-                id:           {
-                    value: client.#id, enumerable: true
+            id:           {
+                value: client.#id, enumerable: true
+            },
+            DAT:          {
+                set: (dat) => {
+                    this.#DAT = dat;
                 },
-                DAT:          {
-                    set: (dat) => {
-                        this.#DAT = dat;
-                    },
-                    get: () => {
-                        return this.#DAT;
-                    }
-                },
-                connect:      {
-                    value:         (callback) => {
-                        let
-                            error = null,
-                            data
-                        ;
-                        try {
-                            // REM : https://nodejs.org/api/tls.html#tlsconnectoptions-callback
-                            client.#socket = tls.connect(options.socket, callback);
-                            //client.#socket.setEncoding('utf8');
-                            client.#socket.on('connect', (that) => {
+                get: () => {
+                    return this.#DAT;
+                }
+            }, // DAT
+            connect:      {
+                value:         (callback) => {
 
-                                client.#socket.on('end', (that) => {
-                                    debugger;
-                                    client.emit('end', that);
-                                });
-                                client.#socket.on('close', (that) => {
-                                    debugger;
-                                    client.emit('close', that);
-                                });
+                    let
+                        error = null,
+                        data
+                    ;
 
-                                this.#session = new Session({
-                                    id:           `${this.#id}session/${uuid.v1()}`,
-                                    DAT:          this.#DAT,
-                                    proto:        this.#proto,
-                                    fsm:          fsm,
-                                    socket:       client.#socket,
-                                    authenticate: authenticate,
-                                    //
-                                    timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO
-                                });
+                    try {
 
-                                let
-                                    message = proto.IdscpHello.create({
-                                        version:               idscpVersion,
-                                        dynamicAttributeToken: {token: Buffer.from(this.#DAT, 'utf-8')},
-                                        supportedRaSuite:      [],
-                                        expectedRaSuite:       []
-                                    }),
-                                    encoded = proto.IdscpHello.encode(message).finish()
-                                    //, decoded = proto.IdscpHello.decode(encoded)
-                                ;
-                                this.#socket.write(encoded);
+                        // REM : https://nodejs.org/api/tls.html#tlsconnectoptions-callback
+                        client.#socket = tls.connect(options.socket, callback);
 
-                                this.#session.on('data', (data) => {
-                                    client.emit('data', data);
-                                });
+                        //client.#socket.setEncoding('utf8');
 
-                                this.#session.on('event', (event) => {
-                                    this.emit('event', event);
-                                });
+                        client.#socket.on('connect', (that) => {
 
-                            }); //  client.#socket.on('connect')
+                            client.#socket.on('end', (that) => {
+                                //debugger;
+                                client.emit('end', that);
+                            });
+                            client.#socket.on('close', (that) => {
+                                debugger;
+                                client.emit('close', that);
+                            });
 
-                            //client.on('data', onData);
-                            //client.on('error', onError);
-                            //client.on('end', onEnd);
-                            //callback(error, data);
-                        } catch (jex) {
-                            error = jex;
-                            //callback(error, data);
-                        } // try {
-                    }, enumerable: false
-                }, // connect
-                write:        {
-                    value: async (data) => {
-                        try {
-                            client.#socket.write(data);
-                        } catch (jex) {
-                            throw(jex);
-                        } // try
-                    }
-                }, // write
-                idscpVersion: {value: idscpVersion, enumerable: true}
+                            client.#session = new Session({
+                                id:           `${client.#id}session/${uuid.v1()}`,
+                                DAT:          client.#DAT,
+                                proto:        client.#proto,
+                                fsm:          fsm,
+                                socket:       client.#socket,
+                                authenticate: authenticate,
+                                //
+                                timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO
+                            });
+
+                            let
+                                message = proto.IdscpHello.create({
+                                    version:               idscpVersion,
+                                    dynamicAttributeToken: {token: Buffer.from(client.#DAT, 'utf-8')},
+                                    supportedRaSuite:      [],
+                                    expectedRaSuite:       []
+                                }),
+                                encoded = proto.IdscpHello.encode(message).finish()
+                                //, decoded = proto.IdscpHello.decode(encoded)
+                            ;
+                            client.#socket.write(encoded);
+
+                            client.#session.on('data', (data) => {
+                                client.emit('data', data);
+                            });
+
+                            client.#session.on('event', (event) => {
+                                client.emit('event', event);
+                            });
+                            client.#session.on(fsm.state.STATE_ESTABLISHED, (event) => {
+                                client.emit(fsm.state.STATE_ESTABLISHED);
+                            });
+                        }); //  client.#socket.on('connect')
+
+                    } catch (jex) {
+                        error = jex;
+                    } // try {
+                }, enumerable: false
+            }, // connect
+            write:        {
+                value:         async (data) => {
+                    try {
+                        client.#socket.write(data);
+                    } catch (jex) {
+                        throw(jex);
+                    } // try
+                }, enumerable: false
+            }, // write
+            idscpVersion: {
+                value: idscpVersion, enumerable: true
             }
-        ); // Object.defineProperties(client)
+        }); // Object.defineProperties(client)
+
         return client;
+
     } // constructor
 
 } // Client

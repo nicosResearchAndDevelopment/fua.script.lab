@@ -40,12 +40,14 @@ const
                 },
                 proto:        ids_proto,
                 authenticate: async (token) => {
-                    let DAT = {};
+                    let DAT = {
+                        requestToken: token
+                    };
                     return DAT;
                 }, // authenticate,
                 //
                 timeout_WAIT_FOR_HELLO: 60,
-                timeout_SESSION:        3
+                timeout_SESSION:        60
             }),
             APP                     = require('./test.app.js')({
                 server: server,
