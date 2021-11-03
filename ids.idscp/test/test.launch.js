@@ -1,27 +1,15 @@
 const
-    fs                     = require("fs"),
-    //protobuf               = require('protocol-buffers'),
-    protobuf               = require("protobufjs"),
-    {Server, idscpVersion} = require(`../src/2/ids.idscp`),
-    {fsm, wait}            = require(`../src/2/ids.idscp.fsm`) // REM: TEST only
+    fs                                = require("fs"),
+    //
+    protobuf                          = require("protobufjs"),
+    //
+    {Server, fsm, wait, idscpVersion} = require(`../src/2/ids.idscp`)
 ;
 
 (async () => {
     try {
-        let
-            //proto     = fs.readFileSync(`../src/2/proto/ids.idscp.proto`),
-            ids_proto = await protobuf.load("../src/2/proto/ids.idscp.proto")
-            //ids_proto = protobuf(fs.readFileSync(`../src/2/proto/ids.idscp.proto`))
-        ;
-        //
-        //let
-        //    waiter = wait(3, () => {
-        //        debugger;
-        //        console.log(`waiter callback`)
-        //    })
-        //;
-
         const
+            proto                   = await protobuf.load("../src/2/proto/ids.idscp.proto"),
             server_tls_certificates = require(`./cert/server/tls-server/server.js`),
             connector_certificates  = require(`./cert/server/connector/client.js`),
             server                  = new Server({
@@ -38,7 +26,7 @@ const
                     },
                     cert: connector_certificates
                 },
-                proto:        ids_proto,
+                proto:        proto,
                 authenticate: async (token) => {
                     let DAT = {
                         requestToken: token
@@ -51,11 +39,12 @@ const
             }),
             APP                     = require('./test.app.js')({
                 server: server,
-                proto:  ids_proto
+                proto:  proto
             })
         ; // const
     } catch (jex) {
         debugger;
+        throw (jex);
     } // try
 })().catch(console.error);
 

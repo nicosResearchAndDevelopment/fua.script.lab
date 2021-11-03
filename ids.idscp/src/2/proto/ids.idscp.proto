@@ -13,6 +13,9 @@ message IdscpMessage {
         IdscpRaVerifier idscpRaVerifier = 7;
         IdscpData idscpData = 8;
         IdscpAck idscpAck = 9;
+        //region fua-extension
+        IdscpFuaData idscpFuaData = 10;
+        //endregion fua-extension
     }
 }
 
@@ -68,3 +71,33 @@ message IdscpData {
 message IdscpAck {
     bool alternating_bit = 1;
 }
+
+//region fua
+
+message Error {
+    string id = 1;
+    string type = 2;
+    string code = 3;
+    string message = 4;
+}
+
+message Header {
+    string name = 1;
+    string value = 2;
+}
+
+message Payload {
+    oneof data {
+        IdscpData idscpData = 1;
+        IdscpFuaData idscpFuaData = 2;
+    }
+}
+
+message IdscpFuaData {
+    repeated Header header = 1;
+    bytes payload = 2;
+    //    Payload payload = 2;
+    bool alternating_bit = 3;
+}
+
+//endregion fua

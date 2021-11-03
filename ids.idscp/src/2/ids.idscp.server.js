@@ -4,29 +4,12 @@ const
     EventEmitter = require('events'),
     tls          = require('tls'),
     //
-    protobuf     = require("protobufjs"),
-    //
     util         = require('@nrd/fua.core.util'),
     uuid         = require("@nrd/fua.core.uuid"),
     //
-    {fsm, wait}  = require(`./ids.idscp.fsm`),
-    {Session}    = require(`./ids.idscp.session`),
-    idscpVersion = 2
+    {fsm, idscpVersion}  = require(`./ids.idscp.fsm`),
+    {Session}    = require(`./ids.idscp.session`)
 ; // const
-
-function timeout(id, sessions, callback, seconds) {
-
-    // TODO : emitted by timeout
-    //emit({
-    //    id: id
-    //});
-    let waiter = wait(seconds, () => {
-        callback(session);
-    });
-    return () => {
-
-    };
-} // timeout()
 
 class Server extends EventEmitter {
 
@@ -44,8 +27,9 @@ class Server extends EventEmitter {
                     proto:        proto = null,
                     authenticate: authenticate,
                     //
-                    timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO = 10,
-                    timeout_SESSION:        timeout_SESSION = 10
+
+                    timeout_SESSION:        timeout_SESSION = 10,
+                    timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO = 10
                 }) {
 
         super(); // REM EventEmitter
@@ -73,9 +57,6 @@ class Server extends EventEmitter {
                 event:     fsm.event.UPPER_START_HANDSHAKE
             });
 
-            //socket.setEncoding('utf8');
-
-            // TODO : this should happen at the end fsm-run...
             const
                 session = new Session({
                     id:           `${this.#id}session/${uuid.v1()}`,
@@ -84,8 +65,10 @@ class Server extends EventEmitter {
                     fsm:          fsm,
                     socket:       socket,
                     authenticate: authenticate,
-                    state:        {type: fsm.state.STATE_CLOSED_LOCKED},
+                    startedAt:    util.timestamp(),
+                    state:        {type: fsm.state.STATE_CLOSED_UNLOCKED},
                     //
+                    reconnect:              false, // REM : default, Server doesn't reconnect!
                     timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO,
                     timeout_SESSION:        timeout_SESSION
                 }) // session
@@ -96,12 +79,7 @@ class Server extends EventEmitter {
             });
 
             // REM : fired ONLY, if it's running under <fsm.state.STATE_ESTABLISHED>
-            //session.on('data', (data) => {
-            //    if (session.state.type === fsm.state.STATE_ESTABLISHED)
-            //        server.emit('data', session, data);
-            //});
             session.on(fsm.state.STATE_ESTABLISHED, () => {
-                //debugger;
                 session.on('data', (data) => {
                     server.emit('data', session, data);
                 });

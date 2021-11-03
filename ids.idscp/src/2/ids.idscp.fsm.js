@@ -5,7 +5,7 @@ const
     util         = require('@nrd/fua.core.util'),
     uuid         = require("@nrd/fua.core.uuid"),
     //
-    idscpVersion = 2
+    idscpVersion = "2"
 ;
 
 exports.fsm = Object.freeze({
@@ -115,7 +115,7 @@ exports.wait = (timeout, callback = () => {
     ;
     const
         runner    = (timeout, callback) => {
-            setTimeout(() => {
+            return setTimeout(() => {
                 callback();
             }, (timeout * 1000))
         },
@@ -136,3 +136,7 @@ exports.wait = (timeout, callback = () => {
     return steer;
 
 };
+
+exports.idscpVersion = idscpVersion;
+
+// EOF

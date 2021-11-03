@@ -1,14 +1,13 @@
 const
-    EventEmitter = require('events'),
-    tls          = require('tls'),
+    EventEmitter              = require('events'),
+    tls                       = require('tls'),
     //
-    util         = require('@nrd/fua.core.util'),
-    uuid         = require("@nrd/fua.core.uuid"),
+    util                      = require('@nrd/fua.core.util'),
+    uuid                      = require("@nrd/fua.core.uuid"),
     //
-    {fsm, wait}  = require(`./ids.idscp.fsm`),
-    {Session}    = require(`./ids.idscp.session`),
-    idscpVersion = "2"
-;
+    {fsm, wait, idscpVersion} = require(`./ids.idscp.fsm`),
+    {Session}                 = require(`./ids.idscp.session`)
+; // const
 
 class Client extends EventEmitter {
 
@@ -25,6 +24,7 @@ class Client extends EventEmitter {
                     proto:        proto,
                     authenticate: authenticate,
                     //
+                    timeout_SESSION: timeout_SESSION = 10,
                     timeout_WAIT_FOR_HELLO = 10
                 }) {
 
@@ -70,7 +70,7 @@ class Client extends EventEmitter {
                                 client.emit('end', that);
                             });
                             client.#socket.on('close', (that) => {
-                                debugger;
+                                //debugger;
                                 client.emit('close', that);
                             });
 
@@ -81,26 +81,16 @@ class Client extends EventEmitter {
                                 fsm:          fsm,
                                 socket:       client.#socket,
                                 authenticate: authenticate,
+                                startedAt:    util.timestamp(),
+                                state:        {type: fsm.state.STATE_CLOSED_UNLOCKED},
                                 //
-                                timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO
+                                timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO,
+                                timeout_SESSION:        timeout_SESSION
                             });
-
-                            let
-                                message = proto.IdscpHello.create({
-                                    version:               idscpVersion,
-                                    dynamicAttributeToken: {token: Buffer.from(client.#DAT, 'utf-8')},
-                                    supportedRaSuite:      [],
-                                    expectedRaSuite:       []
-                                }),
-                                encoded = proto.IdscpHello.encode(message).finish()
-                                //, decoded = proto.IdscpHello.decode(encoded)
-                            ;
-                            client.#socket.write(encoded);
 
                             client.#session.on('data', (data) => {
                                 client.emit('data', data);
                             });
-
                             client.#session.on('event', (event) => {
                                 client.emit('event', event);
                             });
@@ -135,3 +125,5 @@ class Client extends EventEmitter {
 } // Client
 
 exports.Client = Client;
+
+// EOF

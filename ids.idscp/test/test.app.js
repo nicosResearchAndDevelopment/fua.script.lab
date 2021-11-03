@@ -1,8 +1,11 @@
 const
     protobuf = require("protobufjs"),
     //
-    {fsm}    = require(`../src/2/ids.idscp.fsm.js`)
-;
+    util     = require('@nrd/fua.core.util'),
+    uuid     = require("@nrd/fua.core.uuid"),
+    //
+    {Client, fsm} = require(`../src/2/ids.idscp`)
+; // const
 
 module.exports = async ({
                             server: server,
@@ -10,15 +13,56 @@ module.exports = async ({
                         }) => {
 
     const
-        ids_proto              = await protobuf.load("../src/2/proto/ids.idscp.proto"),
-        {Client, idscpVersion} = require(`../src/2/ids.idscp`)
-    ;
+        clients                = new Map(),
+        rooms                  = new Map()
+    ; // const
 
-    const
-        APP = null
-    ;
+    //region fn
 
-    const clients = new Map();
+    function heartbeat(timeout = 1, callback) {
+        let semaphore;
+        semaphore = setTimeout(() => {
+            callback({
+                id:        `${server.id}heartbeat/${uuid.v4()}`,
+                type:      "urn:idscp:server:heartbeat",
+                timestamp: util.timestamp(),
+                timeout:   timeout
+            });
+            heartbeat(timeout, callback);
+        }, (timeout * 1000));
+    } // heartbeat()
+
+    async function constructIdscpFuaData(data) {
+        let
+            payload = data.payload,
+            result  = {header: {}}
+        ;
+        try {
+            if (data.header && data.header.length > 0) {
+                data.header.forEach((entry) => {
+                    let name = entry.name.toLowerCase();
+                    if (result.header[name])
+                        throw(new Error(``));
+                    result.header[name] = entry.value;
+                }); // data.header.forEach((entry))
+            } // if ()
+            switch (result.header['content-type']) {
+                case "application/json":
+                case "application/json+ld":
+                    if (payload)
+                        result.payload = JSON.parse(payload.toString())
+                    break; //
+                default:
+                    result.payload = data.payload;
+                    break; // default
+            } // switch (content-type)
+            return result;
+        } catch (jex) {
+            throw (jex);
+        } // try
+    } // constructIdscpFuaData
+
+    //endregion fn
 
     server.on('event', (event) => {
         console.log(JSON.stringify(event, "", "\t"));
@@ -46,23 +90,67 @@ module.exports = async ({
         clients.set(client.id, client);
     }); // server.on('clientTimeout')
 
-    server.on('data', (session, data) => {
-        //debugger;
-        let decoded = ids_proto.IdscpData.decode(data);
-        //let decoded = ids_proto.IdscpHello.decode(data);
-        console.log(JSON.stringify(decoded, "", "\t"));
-        // REM : here we have to do all this application-stuff:
-        // - understand, what consumer request.
-        // - authorization on given assets
-    });
+    server.on('data', async (session, data) => {
 
-    //server.on(fsm.state.STATE_ESTABLISHED, (session) => {
-    //    debugger;
-    //    // REM : this will ONLY be triggered AFTER sucessfull initial handshake and will work on "real" data, only...
-    //    //session.on('data', (data) => {
-    //    //    debugger;
-    //    //});
-    //});
+        try {
+            let
+                proto_message = proto.IdscpMessage,
+                decoded       = proto_message.decode(data),
+                result
+            ;
+
+            if (decoded.idscpFuaData) {
+
+                let
+                    method,
+                    accept,
+                    target,
+                    ack
+                ;
+                result = await constructIdscpFuaData(decoded.idscpFuaData);
+
+                if (result.header) {
+                    method = result.header.method;
+                    target = result.header.target;
+                    accept = (result.header.accept || "applications/json");
+                    ack    = result.header.ack;
+                } // if ()
+
+                switch (method) {
+                    case "subscribe":
+                        switch (target) {
+                            case "urn:server:heartbeat":
+                                // TODO : Access-Control (DACL)
+                                let audience = rooms.get(target);
+                                if (audience) {
+                                    audience.set(session, {
+                                        ack:    ack,
+                                        accept: accept
+                                    });
+                                } // if ()
+                                break; // urn:server:heartbeat
+                            default:
+                                break; // default
+                        } // switch(target)
+                        break; // subscription
+                    default:
+                        break; // default
+                } // switch(method)
+
+                console.log(JSON.stringify(result, "", "\t"));
+            } else if (decoded.idscpData) {
+
+            } // if()
+
+            // REM : here we have to do all this application-stuff:
+            // - understand, what consumer request.
+            // - authorization on given assets
+
+        } catch (jex) {
+            throw(jex);
+        } // try
+
+    }); // server.on('data')
 
     const
         server_tls_certificates       = require(`./cert/server/tls-server/server.js`),
@@ -72,11 +160,45 @@ module.exports = async ({
 
     server.listen(async () => {
 
+        heartbeat(1, (data) => {
+            console.log(JSON.stringify(data, "", "\t"));
+            let
+                audience = rooms.get("urn:server:heartbeat")
+            ;
+            if (audience && audience.size > 0) {
+                audience.forEach(async (steer, session, map) => {
+                    //debugger;
+                    let
+                        proto_message = proto.IdscpMessage,
+                        message       = proto_message.create({
+                            idscpFuaData: {
+                                header:  [
+                                    {name: "Method", value: "publish"},
+                                    {name: "Content-Type", value: steer.accept},
+                                    {name: "ACK", value: steer.ack}
+                                ],
+                                payload: Buffer.from(JSON.stringify({error: null, data: data}), 'utf-8')
+                            }
+                        }),
+                        encoded       = proto_message.encode(message).finish(),
+                        //decoded     = proto_message.decode(encoded),
+                        result        = await session.write(encoded)
+                    ;
+                })
+                ;
+            } // if ()
+        });
+
+        rooms.set("urn:server:heartbeat", new Map());
+
+        //region client BOB
         try {
+
             let result;
-            //region client
+
             const
-                bob = new Client({
+                bob_acks = new Map(),
+                bob      = new Client({
                     id:           "tls://bob.nicos-rd.com/",
                     DAT:          "BOB.123.abc",
                     options:      {
@@ -98,65 +220,126 @@ module.exports = async ({
                         return DAT;
                     }, // authenticate,
                     //
+                    reconnect:              true,                                // TODO : implemntation
+                    timeout_SESSION:        timeout_SESSION = 10,   // TODO : implemntation
                     timeout_WAIT_FOR_HELLO: 60
                 })
             ; // const
 
-            //bob.on('STATE_ESTABLISHED', async (event) => {
             bob.on('event', async (event) => {
                 console.log(JSON.stringify(event, "", "\t"));
-
-                //if (event.step === "STATE_ESTABLISHED") {
-                //    //debugger;
-                //    //let message_ = proto.IdscpData.create({
-                //    //        data:            Buffer.from("genauso", 'utf-8'),
-                //    //        alternating_bit: false
-                //    //    }),
-                //    //    encoded_ = await proto.IdscpData.encode(message_).finish()
-                //    //    , _decoded = await proto.IdscpData.decode(encoded_)
-                //    //;
-                //    //let result   = await bob.write(encoded_);
-                //    //
-                //    let flat   = JSON.stringify({mahl: "zeit"});
-                //    let result = await bob.write(Buffer.from(flat));
-                //} // if ()
             });
-            bob.on(fsm.state.STATE_ESTABLISHED, async (client) => {
 
-                // REM : this will ONLY be triggered AFTER sucessfull initial handshake and will work on "real" data, only...
-                bob.on('data', (data) => {
-                    debugger;
+            bob.on(fsm.state.STATE_ESTABLISHED, async () => {
+
+                // REM : this will ONLY be triggered AFTER successful initial handshake and will work on "real" data, only...
+                bob.on('data', async (data) => {
+
+                    try {
+                        let
+                            proto_message = proto.IdscpMessage,
+                            decoded       = proto_message.decode(data),
+                            result
+                        ;
+
+                        if (decoded.idscpFuaData) {
+
+                            let
+                                method,
+                                accept,
+                                content_type,
+                                target,
+                                ack
+                            ;
+                            result = await constructIdscpFuaData(decoded.idscpFuaData);
+
+                            if (result.header) {
+                                method       = result.header.method;
+                                target       = result.header.target;
+                                accept       = (result.header.accept || "applications/json");
+                                content_type = result.header['content-type'];
+                                ack          = result.header.ack;
+                            } // if ()
+
+                            switch (method) {
+                                case "publish":
+                                    let _ack = bob_acks.get(ack);
+                                    if (_ack) {
+                                        _ack.callback(result.payload.error, result.payload.data);
+                                    } // if ()
+                                    break; // publish
+                                default:
+                                    break; // default
+                            } // switch(method)
+
+                            console.log(JSON.stringify(result, "", "\t"));
+                        } else if (decoded.idscpData) {
+
+                        }// if()
+
+                        //console.log(JSON.stringify(decoded.dynamicAttributeToken.token, "", "\t"));
+                        // REM : here we have to do all this application-stuff:
+                        // - understand, what consumer request.
+                        // - authorization on given assets
+                    } catch (jex) {
+                        throw(jex);
+                    } // try
+
                 });
 
-                let flat   = JSON.stringify({mahl: "zeit"});
-                let result = await bob.write(Buffer.from(flat));
-
-            });
+                let
+                    proto_message            = proto.IdscpMessage,
+                    message                  = proto_message.create({
+                        idscpFuaData: {
+                            header:  [{name: "Content-Type", value: "application/json"}],
+                            payload: Buffer.from(JSON.stringify({ge: "nau"}), 'utf-8')
+                        }
+                    }),
+                    ack                      = `${bob.id}ack/${uuid.v4()}`,
+                    server_heartbeat_message = proto_message.create({
+                        idscpFuaData: {
+                            header: [
+                                {name: "Method", value: "subscribe"},
+                                {name: "target", value: "urn:server:heartbeat"},
+                                {name: "Accept", value: "application/json"},
+                                {name: "ACK", value: ack}
+                            ]
+                        }
+                    }),
+                    encoded                  = proto_message.encode(server_heartbeat_message).finish(),
+                    //decoded     = proto_message.decode(encoded),
+                    result                   = await bob.write(encoded)
+                ;
+                bob_acks.set(ack, {
+                    timeout:  undefined,
+                    callback: (error, data) => {
+                        //debugger;
+                        if (error)
+                            throw(error);
+                        console.log(JSON.stringify(data));
+                    } // callback
+                });
+                //debugger;
+            }); // bob.on(fsm.state.STATE_ESTABLISHED)
             bob.connect((error, data) => {
                 //debugger;
             });
             bob.on('error', (error) => {
                 debugger;
             });
-            // REM : this will ONLY be triggered AFTER sucessfull initial handshake and will work on "real" data, only...
-            //bob.on('data', (data) => {
-            //    debugger;
-            //});
-            bob.on('end', (that) => {
+            bob.on('end', async (that) => {
                 debugger;
             });
             bob.on('error', (error) => {
                 debugger;
             });
 
-            //return;
         } catch (jex) {
             throw(jex);
         } // try
+        //endregion client BOB
 
-        //endregion client
-
-    }); // listen
+    }); // server.listen
 
 };
 

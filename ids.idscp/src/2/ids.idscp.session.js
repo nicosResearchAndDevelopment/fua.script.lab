@@ -4,13 +4,10 @@ const
     EventEmitter = require('events'),
     tls          = require('tls'),
     //
-    //protobuf     = require("protobufjs"),
-    //
     util         = require('@nrd/fua.core.util'),
     uuid         = require("@nrd/fua.core.uuid"),
     //
-    {fsm, wait}  = require(`./ids.idscp.fsm`),
-    idscpVersion = 2
+    {fsm, wait, idscpVersion}  = require(`./ids.idscp.fsm`)
 ;
 
 class Session extends EventEmitter {
@@ -27,6 +24,7 @@ class Session extends EventEmitter {
                     proto:        proto,
                     socket:       socket,
                     authenticate: authenticate,
+                    reconnect:    reconnect = false,                                // TODO : implementation
                     // REM : seconds
                     timeout_WAIT_FOR_HELLO = 5,
                     timeout_SESSION = 5 /** seconds */
@@ -42,7 +40,6 @@ class Session extends EventEmitter {
             timeout: wait(timeout_WAIT_FOR_HELLO /** seconds */, () => {
                 if (session.#socket)
                     session.#socket.end();
-                //debugger;
                 session.#socket = null;
             })
         };
@@ -64,6 +61,12 @@ class Session extends EventEmitter {
                     return session.#DAT;
                 }, enumerable: true
             },
+            write: {
+                value:         async (data) => {
+                    if (session.#socket)
+                        session.#socket.write(data);
+                }, enumerable: false
+            }, // write
             quit:  {
                 value:         () => {
                     if (session.#socket)
@@ -83,80 +86,70 @@ class Session extends EventEmitter {
                     case fsm.state.STATE_WAIT_FOR_HELLO:
 
                         let
-                            timeout,
-                            _message = proto.IdscpHello.decode(data),
-                            _token   = _message.dynamicAttributeToken.token.toString('utf-8'),
-                            peerDAT  = await authenticate(_token)
+                            timeout
+                        ;
+                        const
+                            proto_message = proto.IdscpMessage,
+                            decoded       = proto_message.decode(data)
                         ;
 
-                        if (peerDAT) {
-                            session.#state.timeout(/** default */ -1);
-
-                            let message_ = proto.IdscpHello.create({
-                                    version:               idscpVersion,
-                                    dynamicAttributeToken: {token: Buffer.from(session.#DAT, 'utf-8')},
-                                    //dynamicAttributeToken: {token: Buffer.from("ALICE.6969696969669.genau", 'utf-8')},
-                                    supportedRaSuite: [],
-                                    expectedRaSuite:  []
-                                }),
-                                encoded_ = await proto.IdscpHello.encode(message_).finish()
-                                //, _decoded = await proto.IdscpHello.decode(encoded_)
+                        if (decoded.idscpHello) {
+                            let
+                                _token  = decoded.idscpHello.dynamicAttributeToken.token.toString('utf-8'),
+                                peerDAT = await authenticate(_token)
                             ;
-                            session.#socket.write(encoded_);
-
-                            session.#DAT = peerDAT;
-
-                            // TODO : DAT.exp? internal seesion timeout?
-                            timeout        = timeout_SESSION;
-                            session.#state = {
-                                type:    fsm.state.STATE_ESTABLISHED,
-                                timeout: wait(timeout /** seconds */, () => {
-                                    //debugger;
-                                    session.#state.type = fsm.state.STATE_CLOSED_LOCKED;
-                                    //session.#DAT;
-                                    session.#socket.end();
-                                    session.#socket = null;
-                                    //session.emit('event', {
-                                    //    id:        `${session.#id}event/${uuid.v1()}`,
-                                    //    timestamp: util.timestamp(),
-                                    //    prov:      `${session.#id}session/state/timeout/}`,
-                                    //    step:      "STATE_ESTABLISHED"
-                                    //});
-                                })
-                            }; // this.#state
-
-                            //session.emit('event', {
-                            //    id:        `${session.#id}event/${uuid.v1()}`,
-                            //    timestamp: util.timestamp(),
-                            //    prov:      `${session.#id}listen/}`,
-                            //    step:      "STATE_ESTABLISHED",
-                            //    event:     fsm.state.STATE_ESTABLISHED
-                            //});
-                            session.emit(fsm.state.STATE_ESTABLISHED, session);
-
-                        } // if
+                            if (peerDAT) {
+                                session.#state.timeout(/** default */ -1); // REM : kills given timeout for 'STATE_WAIT_FOR_HELLO'
+                                // TODO : DAT.exp? internal session-timeout?
+                                timeout        = undefined; // timeout_SESSION;
+                                session.#state = {
+                                    type:    fsm.state.STATE_ESTABLISHED
+                                };
+                                if (timeout)
+                                    session.#state.timeout = wait(timeout /** seconds */, () => {
+                                        session.#state.type = fsm.state.STATE_CLOSED_LOCKED;
+                                        session.#socket.end();
+                                        session.#socket = null;
+                                    });
+                                session.emit(fsm.state.STATE_ESTABLISHED, session);
+                            } // if()
+                        } // if()
                         break; // fsm.state.STATE_WAIT_FOR_HELLO
-
                     case fsm.state.STATE_ESTABLISHED:
                         // REM : present it the main "application-layer" as real payload...
                         session.emit('data', data);
-                        break; // fsm.state.STATE_ESTABLISHED
-
+                        break;
                     default:
                         debugger;
                         break; // default
-
-                } // switch(this.#state)
+                } // switch(session.#state)
 
             } catch (jex) {
                 throw(jex);
             } // try
-        }); // this.#socket.on('data')
+        }); // session.#socket.on('data')
 
-        return session;
+        let
+            proto_message = proto.IdscpMessage,
+            message       = proto_message.create({
+                idscpHello: {
+                    version:               idscpVersion,
+                    dynamicAttributeToken: {token: Buffer.from(session.#DAT, 'utf-8')},
+                    supportedRaSuite:      [],
+                    expectedRaSuite:       []
+                }
+            }),
+            encoded       = proto_message.encode(message).finish()
+        ; // let
+
+        session.#socket.write(encoded);
+
+        return session; // REM : this
 
     } // constructor
 
 } // Session
 
 exports.Session = Session;
+
+// EOF
