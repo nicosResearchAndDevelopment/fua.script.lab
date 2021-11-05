@@ -1,0 +1,68 @@
+syntax = "proto3";
+package crdf;
+
+//import "google/protobuf/any.proto";
+
+
+message Crdf_Message {
+    repeated Crdf_Header header = 1;
+    CRDF_Payload payload = 2;
+}
+
+
+message Crdf_Header {
+    string name = 1;
+    string value = 2;
+}
+
+message CRDF_Payload {
+    Crdf_V v = 1;
+    repeated Crdf_S s = 2;
+}
+
+message Crdf_V {
+    repeated Crdf_Entity entities = 1;
+    repeated Crdf_Entity_property entityProperties = 2;
+    repeated Crdf_Value_property valueProperties = 3;
+    repeated Crdf_Literal_value literalValues = 4;
+}
+
+message Crdf_Entity {
+    string key = 1;
+    string entity = 2;
+    string type = 3;
+}
+
+message Crdf_Entity_property {
+    string key = 1;
+    string property = 2;
+}
+
+message Crdf_Value_property {
+    string key = 1;
+    string property = 2;
+    string type = 3;
+}
+
+message Crdf_Literal_value {
+    string key = 1;
+    string value = 2;
+    string language = 3;
+}
+
+message Crdf_S {
+    string iri = 1;
+    repeated Crdf_Entity_property_entity epe = 2;
+    repeated Crdf_Value_property_value vpv = 3;
+    //    string property_value = 3;
+}
+
+message Crdf_Entity_property_entity {
+    string pkj = 1; // REM: Entity Properties Key
+    string pki = 2; // REM: Entities Key
+}
+
+message Crdf_Value_property_value {
+    string pkk = 1; // REM: Value Properties Key
+    string pkl = 2; // REM: Literal values Key
+}

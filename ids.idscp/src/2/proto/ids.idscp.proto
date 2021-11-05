@@ -14,7 +14,7 @@ message IdscpMessage {
         IdscpData idscpData = 8;
         IdscpAck idscpAck = 9;
         //region fua-extension
-        IdscpFuaData idscpFuaData = 10;
+        FuaData fuaData = 10;
         //endregion fua-extension
     }
 }
@@ -72,32 +72,31 @@ message IdscpAck {
     bool alternating_bit = 1;
 }
 
-//region fua
+//region fua (Framework Universe Architecture)
 
-message Error {
+// REM : NOT used so far
+message FuaError {
     string id = 1;
     string type = 2;
     string code = 3;
     string message = 4;
 }
 
-message Header {
+message FuaHeader {
     string name = 1;
     string value = 2;
 }
 
-message Payload {
+message FuaPayload {
     oneof data {
         IdscpData idscpData = 1;
-        IdscpFuaData idscpFuaData = 2;
+        FuaData fuaData = 2;
     }
 }
 
-message IdscpFuaData {
-    repeated Header header = 1;
-    bytes payload = 2;
-    //    Payload payload = 2;
-    bool alternating_bit = 3;
+message FuaMessage {
+    repeated FuaHeader header = 1;
+    FuaPayload payload = 2;
 }
 
 //endregion fua
