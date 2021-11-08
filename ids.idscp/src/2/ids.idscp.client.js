@@ -14,6 +14,7 @@ class Client extends EventEmitter {
     #id;
     #DAT;
     #proto;
+    //#proto_loaded;
     #socket;
     #session;
 
@@ -22,6 +23,7 @@ class Client extends EventEmitter {
                     DAT:          DAT,
                     options:      options,
                     proto:        proto,
+                    //proto_loaded: proto_loaded,
                     authenticate: authenticate,
                     //
                     timeout_SESSION: timeout_SESSION = 10,
@@ -30,9 +32,10 @@ class Client extends EventEmitter {
 
         super(); // REM EventEmitter
 
-        this.#id    = id;
-        this.#DAT   = DAT;
-        this.#proto = proto;
+        this.#id           = id;
+        this.#DAT          = DAT;
+        this.#proto        = proto;
+        //this.#proto_loaded = proto_loaded;
 
         let client = this;
 
@@ -61,8 +64,6 @@ class Client extends EventEmitter {
                         // REM : https://nodejs.org/api/tls.html#tlsconnectoptions-callback
                         client.#socket = tls.connect(options.socket, callback);
 
-                        //client.#socket.setEncoding('utf8');
-
                         client.#socket.on('connect', (that) => {
 
                             client.#socket.on('end', (that) => {
@@ -78,6 +79,7 @@ class Client extends EventEmitter {
                                 id:           `${client.#id}session/${uuid.v1()}`,
                                 DAT:          client.#DAT,
                                 proto:        client.#proto,
+                                //proto_loaded: client.#proto_loaded,
                                 fsm:          fsm,
                                 socket:       client.#socket,
                                 authenticate: authenticate,
@@ -97,11 +99,13 @@ class Client extends EventEmitter {
                             client.#session.on(fsm.state.STATE_ESTABLISHED, (event) => {
                                 client.emit(fsm.state.STATE_ESTABLISHED);
                             });
+
                         }); //  client.#socket.on('connect')
 
                     } catch (jex) {
                         error = jex;
-                    } // try {
+                    } // try
+
                 }, enumerable: false
             }, // connect
             write:        {

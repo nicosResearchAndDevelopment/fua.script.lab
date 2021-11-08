@@ -1,30 +1,51 @@
 const
-    fs           = require("fs"),
-    path         = require('path'),
-    EventEmitter = require('events'),
-    tls          = require('tls'),
+    fs                  = require("fs"),
+    path                = require('path'),
+    crypto              = require("crypto"),
+    EventEmitter        = require('events'),
+    tls                 = require('tls'),
     //
-    util         = require('@nrd/fua.core.util'),
-    uuid         = require("@nrd/fua.core.uuid"),
+    util                = require('@nrd/fua.core.util'),
+    uuid                = require("@nrd/fua.core.uuid"),
     //
-    {fsm, idscpVersion}  = require(`./ids.idscp.fsm`),
-    {Session}    = require(`./ids.idscp.session`)
-; // const
+    {fsm, idscpVersion} = require(`./ids.idscp.fsm`),
+    DAPSClient          = require('@nrd/fua.ids.client.daps'),
+    {Session}           = require(`./ids.idscp.session`)
+;
 
+//region fn
+function sha256(data) {
+    return crypto.createHash("sha256").update(data, "binary").digest("base64");
+    //                                               ------  binary: hash the byte string
+}
+
+//endregion fn
 class Server extends EventEmitter {
 
     #id;
+    #host;
     #DAT;
     #port;
-    #tlsServer = null;
+    #dapsClient = null;
+    #tlsServer  = null;
     #proto;
 
+    //#proto_loaded;
+
     constructor({
-                    id:           id,
-                    DAT:          DAT,
-                    port:         port = 8080,
-                    options:      options = null,
-                    proto:        proto = null,
+                    id:      id,
+                    host:    host,
+                    port:    port = 8080,
+                    DAT:     DAT,
+                    options: options = null,
+                    //region DAPS
+                    dapsUrl:       dapsUrl,
+                    dapsTokenPath: dapsTokenPath,
+                    dapsJwksPath:  dapsJwksPath,
+                    dapsVcPath:    dapsVcPath,
+                    //endregion DAPS
+                    proto: proto = null,
+                    //proto_loaded: proto_loaded = null,
                     authenticate: authenticate,
                     //
 
@@ -39,10 +60,22 @@ class Server extends EventEmitter {
             sessions = new Map()
         ;
 
-        this.#id    = id;
-        this.#DAT   = DAT;
-        this.#port  = port;
+        this.#id   = id;
+        this.#host = host;
+        this.#DAT  = DAT;
+        this.#port = port;
+
+        this.#dapsClient = new DAPSClient({
+            dapsUrl:       dapsUrl,
+            dapsTokenPath: dapsTokenPath,
+            dapsJwksPath:  dapsJwksPath,
+            dapsVcPath:    dapsVcPath,
+            SKIAKI:        options.cert.meta.SKIAKI,
+            privateKey:    options.cert.privateKey
+        });
+
         this.#proto = proto;
+        //this.#proto_loaded = proto_loaded;
 
         let server = this;
 
@@ -58,10 +91,13 @@ class Server extends EventEmitter {
             });
 
             const
+                id      = `${this.#id}session/${uuid.v4()}`,
                 session = new Session({
-                    id:           `${this.#id}session/${uuid.v1()}`,
-                    DAT:          this.#DAT,
-                    proto:        this.#proto,
+                    id:    id,
+                    sid:   sha256(id),
+                    DAT:   this.#DAT,
+                    proto: this.#proto,
+                    //proto_loaded: this.#proto_loaded,
                     fsm:          fsm,
                     socket:       socket,
                     authenticate: authenticate,
@@ -84,7 +120,7 @@ class Server extends EventEmitter {
                     server.emit('data', session, data);
                 });
             });
-            sessions.set(session.id, {session: session});
+            sessions.set(session.sid, {session: session});
             server.emit('connection', session);
 
         }); // tls.createServer(options.tls)
@@ -98,6 +134,9 @@ class Server extends EventEmitter {
             id:           {
                 value: server.#id, enumerable: true
             },
+            host:         {
+                value: server.#host, enumerable: true
+            },
             DAT:          {
                 set: (dat) => {
                     server.#DAT = dat;
@@ -106,6 +145,16 @@ class Server extends EventEmitter {
                     return server.#DAT;
                 }
             },
+            refreshDAT:   {
+                value: async (daps = "default") => {
+                    try {
+                        this.#DAT = await this.#dapsClient.getDat();
+                        return !!this.#DAT;
+                    } catch (jex) {
+                        throw (jex);
+                    } // try
+                }
+            }, //refreshDAT
             listen:       {
                 value:      (
                                 callback = () => {

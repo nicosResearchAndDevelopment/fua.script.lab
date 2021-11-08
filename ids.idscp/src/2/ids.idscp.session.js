@@ -1,27 +1,42 @@
 const
-    fs           = require("fs"),
-    path         = require('path'),
-    EventEmitter = require('events'),
-    tls          = require('tls'),
+    fs                        = require("fs"),
+    path                      = require('path'),
+    crypto                    = require("crypto"),
+    EventEmitter              = require('events'),
+    tls                       = require('tls'),
     //
-    util         = require('@nrd/fua.core.util'),
-    uuid         = require("@nrd/fua.core.uuid"),
+    util                      = require('@nrd/fua.core.util'),
+    uuid                      = require("@nrd/fua.core.uuid"),
     //
-    {fsm, wait, idscpVersion}  = require(`./ids.idscp.fsm`)
+    {fsm, wait, idscpVersion} = require(`./ids.idscp.fsm`)
 ;
+
+function sha256(data) {
+    return crypto.createHash("sha256").update(data, "binary").digest("base64");
+    //                                               ------  binary: hash the byte string
+}
+
+function IdscpAck(socket) {
+    socket.write(message);
+}
 
 class Session extends EventEmitter {
 
     #id;
+    #sid = null; // REM : !!!
+    #proto;
+    //#proto_loaded;
     #state;
     #DAT;
     #socket;
 
     constructor({
                     id:           id,
+                    sid:          sid = null, // REM : !!!
                     DAT:          DAT,
                     fsm:          fsm,
                     proto:        proto,
+                    //proto_loaded: proto_loaded,
                     socket:       socket,
                     authenticate: authenticate,
                     reconnect:    reconnect = false,                                // TODO : implementation
@@ -34,7 +49,9 @@ class Session extends EventEmitter {
 
         let session = this;
 
-        session.#id    = id;
+        session.#id  = id;
+        session.#sid = sid;
+
         session.#state = {
             type:    fsm.state.STATE_WAIT_FOR_HELLO,
             timeout: wait(timeout_WAIT_FOR_HELLO /** seconds */, () => {
@@ -44,12 +61,17 @@ class Session extends EventEmitter {
             })
         };
 
-        session.#DAT    = DAT;
-        session.#socket = socket;
+        session.#proto        = proto;
+        //session.#proto_loaded = proto_loaded;
+        session.#DAT          = DAT;
+        session.#socket       = socket;
 
         Object.defineProperties(session, {
             id:    {
                 value: session.#id, enumerable: true
+            },
+            sid:   {
+                value: session.#sid, enumerable: true
             },
             state: {
                 get:           () => {
@@ -89,8 +111,10 @@ class Session extends EventEmitter {
                             timeout
                         ;
                         const
-                            proto_message = proto.IdscpMessage,
-                            decoded       = proto_message.decode(data)
+                            proto_message        = this.#proto.IdscpMessage,
+                            decoded              = proto_message.decode(data)
+                            //proto_loaded_message = this.#proto_loaded.IdscpMessage,
+                            //decoded_loaded       = proto_loaded_message.decode(data)
                         ;
 
                         if (decoded.idscpHello) {
@@ -99,11 +123,13 @@ class Session extends EventEmitter {
                                 peerDAT = await authenticate(_token)
                             ;
                             if (peerDAT) {
+                                if (!session.#sid)
+                                    session.#sid = decoded.idscpHello.sid;
                                 session.#state.timeout(/** default */ -1); // REM : kills given timeout for 'STATE_WAIT_FOR_HELLO'
                                 // TODO : DAT.exp? internal session-timeout?
                                 timeout        = undefined; // timeout_SESSION;
                                 session.#state = {
-                                    type:    fsm.state.STATE_ESTABLISHED
+                                    type: fsm.state.STATE_ESTABLISHED
                                 };
                                 if (timeout)
                                     session.#state.timeout = wait(timeout /** seconds */, () => {
@@ -129,10 +155,11 @@ class Session extends EventEmitter {
             } // try
         }); // session.#socket.on('data')
 
-        let
+        const
             proto_message = proto.IdscpMessage,
             message       = proto_message.create({
                 idscpHello: {
+                    sid:                   session.#sid,
                     version:               idscpVersion,
                     dynamicAttributeToken: {token: Buffer.from(session.#DAT, 'utf-8')},
                     supportedRaSuite:      [],

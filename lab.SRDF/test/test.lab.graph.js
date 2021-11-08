@@ -13,6 +13,12 @@ exports['graph'] = [
         'foaf:givenName':  "Simon",
         'foaf:familyName': "Petrac"
     }
+    , {
+        '@id':             "https:www.aisec.fraunhofer.de/gbrost",
+        '@type':           "foaf:Person",
+        'foaf:givenName':  "Gerd",
+        'foaf:familyName': "Brost"
+    }
     ,
     {
         '@id':        "https://www.nicos-rd.com/adminGroup",
