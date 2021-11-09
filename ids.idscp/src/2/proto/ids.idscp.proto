@@ -105,7 +105,8 @@ message FuaMessage {
 //}
 
 message FuaHeartbeat {
-    string timestamp = 1;
+    string id = 1;
+    string timestamp = 2;
 }
 
 message noParameter {}

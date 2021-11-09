@@ -24,8 +24,12 @@ module.exports = async ({
                             client_connector_certificates:  client_connector_certificates,
                             client_request_cert:            client_request_cert,
                             client_reject_unauthorized:     client_reject_unauthorized,
+                            client_daps_schema:             client_daps_schema = "https",
                             client_daps_host:               client_daps_host,
                             client_daps_port:               client_daps_port,
+                            client_daps_token_path:         client_daps_token_path,
+                            client_daps_jwks_path:          client_daps_jwks_path,
+                            client_daps_vc_path:            client_daps_vc_path,
                             client_reconnect:               client_reconnect
                         }) => {
 
@@ -212,19 +216,32 @@ module.exports = async ({
 
         //region fn
         function getHeartbeat(call, callback) {
-            let
-                error  = null,
-                result = {}
+
+            const
+                sid   = call.metadata.get("sid")?.[0]
             ;
-            callback(error, result)
+            let
+                error = null,
+                result
+            ;
+
+            if (server.hasSession(sid)) { // REM : core-level of access-control
+                result = {
+                    id:        `${server.id}heartbeat/${uuid.v4()}`,
+                    timestamp: util.timestamp()
+                };
+            } else {
+                error = {code: 404}
+            } // if()
+            callback(error, result);
         } // getHeartbeat
 
         function getGrpcServer() {
-            let server = new grpc.Server();
-            server.addService(proto_loaded.heartbeat, {
+            let grpc_server = new grpc.Server();
+            grpc_server.addService(proto_loaded.heartbeat, {
                 get: getHeartbeat
             });
-            return server;
+            return grpc_server;
         } // getGrpcServer
         //endregion fn
 
@@ -265,7 +282,16 @@ module.exports = async ({
                         let DAT = {requestToken: token};
                         return DAT;
                     }, // authenticate,
-                    //
+
+                    //region clientDAPS
+                    dapsUrl:       `${client_daps_schema}://${client_daps_host}:${client_daps_port}`,
+                    dapsTokenPath: client_daps_token_path,
+                    dapsJwksPath:  client_daps_jwks_path,
+                    dapsVcPath:    client_daps_vc_path,
+                    SKIAKI:        client_connector_certificates.meta.SKIAKI,
+                    privateKey:    client_connector_certificates.privateKey,
+                    //endregion clientDAPS
+
                     reconnect:              client_reconnect,                                // TODO : implemntation
                     timeout_SESSION:        timeout_SESSION = 10,   // TODO : implemntation
                     timeout_WAIT_FOR_HELLO: 60
@@ -369,13 +395,24 @@ module.exports = async ({
                     } // callback
                 });
 
-                //region grpc (bob as client
+                //region grpc (bob as grpc-client)
+                const grpc_meta_data = new grpc.Metadata();
+
+                grpc_meta_data.add('sid', bob.sid);
+                //grpc_meta_data.add('DAT', bob.DAT);
+
+                const loaded_package = grpc.loadPackageDefinition(proto_loaded);
                 const heartbeat_stub = grpc.loadPackageDefinition(proto_loaded).heartbeat;
-                const grpc_stub = new heartbeat_stub(`${server.host}:${grpc_port}`, grpc.credentials.createInsecure());
-                let get_result = grpc_stub.get();
-                debugger;
-                //endregion grpc (bob as client
+                const grpc_stub      = new heartbeat_stub(`${server.host}:${grpc_port}`, grpc.credentials.createInsecure());
+                let get_result       = await grpc_stub.get({}, grpc_meta_data, (error, result) => {
+                    if (error)
+                        throw(error);
+                    console.log(`BOB : heartbeat.get : result : ${JSON.stringify(result)}`);
+                });
+                //endregion grpc (bob as grpc-client)
+
             }); // bob.on(fsm.state.STATE_ESTABLISHED)
+
             bob.connect((error, data) => {
                 //debugger;
             });

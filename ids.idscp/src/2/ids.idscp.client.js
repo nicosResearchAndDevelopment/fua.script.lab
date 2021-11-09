@@ -6,12 +6,15 @@ const
     uuid                      = require("@nrd/fua.core.uuid"),
     //
     {fsm, wait, idscpVersion} = require(`./ids.idscp.fsm`),
-    {Session}                 = require(`./ids.idscp.session`)
-; // const
+    {Session}                 = require(`./ids.idscp.session`),
+    DAPSClient                = require("@nrd/fua.ids.client.daps")
+    //const _client                 = require("./certs/client.js"); // const
+;
 
 class Client extends EventEmitter {
 
     #id;
+    #sid;
     #DAT;
     #proto;
     //#proto_loaded;
@@ -19,29 +22,52 @@ class Client extends EventEmitter {
     #session;
 
     constructor({
-                    id:           id,
-                    DAT:          DAT,
-                    options:      options,
-                    proto:        proto,
+                    id:      id,
+                    DAT:     DAT,
+                    options: options,
+                    proto:   proto,
                     //proto_loaded: proto_loaded,
                     authenticate: authenticate,
+                    //region clientDAPS
+                    dapsUrl:       dapsUrl,
+                    dapsTokenPath: dapsTokenPath,
+                    dapsJwksPath:  dapsJwksPath,
+                    dapsVcPath:    dapsVcPath,
+                    SKIAKI:        SKIAKI,
+                    privateKey:    privateKey,
+                    //endregion clientDAPS
                     //
+                    reconnect:       reconnect,
                     timeout_SESSION: timeout_SESSION = 10,
                     timeout_WAIT_FOR_HELLO = 10
                 }) {
 
         super(); // REM EventEmitter
 
-        this.#id           = id;
-        this.#DAT          = DAT;
-        this.#proto        = proto;
+        this.#id    = id;
+        this.#DAT   = DAT;
+        this.#proto = proto;
         //this.#proto_loaded = proto_loaded;
+
+        const dapsClient = new DAPSClient({
+            dapsUrl:       dapsUrl,
+            dapsTokenPath: dapsTokenPath,
+            dapsJwksPath:  dapsJwksPath,
+            dapsVcPath:    dapsVcPath,
+            SKIAKI:        SKIAKI,
+            privateKey:    privateKey
+        });
 
         let client = this;
 
         Object.defineProperties(client, {
             id:           {
                 value: client.#id, enumerable: true
+            },
+            sid:          {
+                get:           () => {
+                    return client.#session.sid;
+                }, enumerable: true
             },
             DAT:          {
                 set: (dat) => {
@@ -52,7 +78,7 @@ class Client extends EventEmitter {
                 }
             }, // DAT
             connect:      {
-                value:         (callback) => {
+                value:         async (callback) => {
 
                     let
                         error = null,
@@ -60,7 +86,7 @@ class Client extends EventEmitter {
                     ;
 
                     try {
-
+                        this.#DAT = await dapsClient.getDat();
                         // REM : https://nodejs.org/api/tls.html#tlsconnectoptions-callback
                         client.#socket = tls.connect(options.socket, callback);
 
@@ -76,9 +102,9 @@ class Client extends EventEmitter {
                             });
 
                             client.#session = new Session({
-                                id:           `${client.#id}session/${uuid.v1()}`,
-                                DAT:          client.#DAT,
-                                proto:        client.#proto,
+                                id:    `${client.#id}session/${uuid.v1()}`,
+                                DAT:   client.#DAT,
+                                proto: client.#proto,
                                 //proto_loaded: client.#proto_loaded,
                                 fsm:          fsm,
                                 socket:       client.#socket,

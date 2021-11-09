@@ -26,6 +26,8 @@ class Server extends EventEmitter {
     #host;
     #DAT;
     #port;
+    #sessions   = new Map();
+    #timeouts   = new Map();
     #dapsClient = null;
     #tlsServer  = null;
     #proto;
@@ -55,10 +57,10 @@ class Server extends EventEmitter {
 
         super(); // REM EventEmitter
 
-        const
-            timeouts = new Map(),
-            sessions = new Map()
-        ;
+        //const
+        //    timeouts = new Map()
+        //    //sessions = new Map()
+        //;
 
         this.#id   = id;
         this.#host = host;
@@ -120,7 +122,7 @@ class Server extends EventEmitter {
                     server.emit('data', session, data);
                 });
             });
-            sessions.set(session.sid, {session: session});
+            this.#sessions.set(session.sid, {session: session});
             server.emit('connection', session);
 
         }); // tls.createServer(options.tls)
@@ -137,29 +139,40 @@ class Server extends EventEmitter {
             host:         {
                 value: server.#host, enumerable: true
             },
+            port:         {
+                value: server.#port, enumerable: true
+            },
+            idscpVersion: {
+                value: idscpVersion, enumerable: true
+            },
             DAT:          {
                 set: (dat) => {
                     server.#DAT = dat;
                 },
                 get: () => {
                     return server.#DAT;
-                }
+                }, enumerable: false
             },
             refreshDAT:   {
-                value: async (daps = "default") => {
+                value:         async (daps = "default") => {
                     try {
-                        this.#DAT = await this.#dapsClient.getDat();
-                        return !!this.#DAT;
+                        server.#DAT = await this.#dapsClient.getDat();
+                        return !!server.#DAT;
                     } catch (jex) {
                         throw (jex);
                     } // try
-                }
+                }, enumerable: false
             }, //refreshDAT
+            hasSession:   {
+                value:         (sid) => {
+                    return server.#sessions.has(sid);
+                }, enumerable: false
+            },
             listen:       {
-                value:      (
-                                callback = () => {
-                                }
-                            ) => {
+                value:         (
+                                   callback = () => {
+                                   }
+                               ) => {
                     try {
                         let error = null;
                         server.emit('event', {
@@ -174,15 +187,8 @@ class Server extends EventEmitter {
                         debugger;
                         throw(jex);
                     } // try
-                }, // value
-                enumerable: false
-            },   // listen
-            port:         {
-                value: server.#port, enumerable: true
-            },
-            idscpVersion: {
-                value: idscpVersion, enumerable: true
-            }
+                }, enumerable: false
+            }   // listen
         }); // Object.defineProperties()
 
         return server;

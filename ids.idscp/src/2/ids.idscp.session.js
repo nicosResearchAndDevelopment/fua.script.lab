@@ -31,11 +31,11 @@ class Session extends EventEmitter {
     #socket;
 
     constructor({
-                    id:           id,
-                    sid:          sid = null, // REM : !!!
-                    DAT:          DAT,
-                    fsm:          fsm,
-                    proto:        proto,
+                    id:    id,
+                    sid:   sid = null, // REM : !!!
+                    DAT:   DAT,
+                    fsm:   fsm,
+                    proto: proto,
                     //proto_loaded: proto_loaded,
                     socket:       socket,
                     authenticate: authenticate,
@@ -61,17 +61,19 @@ class Session extends EventEmitter {
             })
         };
 
-        session.#proto        = proto;
+        session.#proto  = proto;
         //session.#proto_loaded = proto_loaded;
-        session.#DAT          = DAT;
-        session.#socket       = socket;
+        session.#DAT    = DAT;
+        session.#socket = socket;
 
         Object.defineProperties(session, {
             id:    {
                 value: session.#id, enumerable: true
             },
             sid:   {
-                value: session.#sid, enumerable: true
+                get:           () => {
+                    return session.#sid;
+                }, enumerable: true
             },
             state: {
                 get:           () => {
@@ -111,8 +113,8 @@ class Session extends EventEmitter {
                             timeout
                         ;
                         const
-                            proto_message        = this.#proto.IdscpMessage,
-                            decoded              = proto_message.decode(data)
+                            proto_message = this.#proto.IdscpMessage,
+                            decoded       = proto_message.decode(data)
                             //proto_loaded_message = this.#proto_loaded.IdscpMessage,
                             //decoded_loaded       = proto_loaded_message.decode(data)
                         ;
