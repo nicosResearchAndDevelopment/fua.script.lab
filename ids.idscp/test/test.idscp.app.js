@@ -184,6 +184,8 @@ module.exports = async ({
 
     server.listen(async () => {
 
+        console.log(`ALICE : ${server.id} : listen on port : ${server.port}`);
+
         heartbeat(1, (data) => {
             //console.log(JSON.stringify(data, "", "\t"));
             let
@@ -255,181 +257,183 @@ module.exports = async ({
         //endregion gRPC
 
         //region client BOB
-        try {
+        if (true) {
+            try {
 
-            let result;
+                let result;
 
-            const
-                bob_acks = new Map(),
-                bob      = new Client({
-                    id:           "idscp://bob.nicos-rd.com/",
-                    DAT:          "BOB.123.abc",
-                    options:      {
-                        cert:   client_connector_certificates,
-                        socket: {
-                            key:                client_tls_certificates.key,
-                            cert:               client_tls_certificates.cert,
-                            ca:                 [/** REM : !!!!!!!!!!!!!!!!!!!!!! */ client_server_tls_certificates.ca],
-                            requestCert:        client_request_cert,
-                            rejectUnauthorized: client_reject_unauthorized,
-                            //
-                            host: client_daps_host,
-                            port: client_daps_port
-                        }
-                    }, // options
-                    proto:        proto,
-                    authenticate: async (token) => {
-                        let DAT = {requestToken: token};
-                        return DAT;
-                    }, // authenticate,
+                const
+                    bob_acks = new Map(),
+                    bob      = new Client({
+                        id:           "idscp://bob.nicos-rd.com/",
+                        DAT:          "BOB.123.abc",
+                        options:      {
+                            cert:   client_connector_certificates,
+                            socket: {
+                                key:                client_tls_certificates.key,
+                                cert:               client_tls_certificates.cert,
+                                ca:                 [/** REM : !!!!!!!!!!!!!!!!!!!!!! */ client_server_tls_certificates.ca],
+                                requestCert:        client_request_cert,
+                                rejectUnauthorized: client_reject_unauthorized,
+                                //
+                                //host: `${server.schema}://${server.host}`,
+                                host: server.host,
+                                port: server.port
+                            }
+                        }, // options
+                        proto:        proto,
+                        //authenticate: async (token) => {
+                        //    let DAT = {requestToken: token};
+                        //    return DAT;
+                        //}, // authenticate,
 
-                    //region clientDAPS
-                    dapsUrl:       `${client_daps_schema}://${client_daps_host}:${client_daps_port}`,
-                    dapsTokenPath: client_daps_token_path,
-                    dapsJwksPath:  client_daps_jwks_path,
-                    dapsVcPath:    client_daps_vc_path,
-                    SKIAKI:        client_connector_certificates.meta.SKIAKI,
-                    privateKey:    client_connector_certificates.privateKey,
-                    //endregion clientDAPS
+                        //region clientDAPS
+                        dapsUrl:       `${client_daps_schema}://${client_daps_host}:${client_daps_port}`,
+                        dapsTokenPath: client_daps_token_path,
+                        dapsJwksPath:  client_daps_jwks_path,
+                        dapsVcPath:    client_daps_vc_path,
+                        SKIAKI:        client_connector_certificates.meta.SKIAKI,
+                        privateKey:    client_connector_certificates.privateKey,
+                        //endregion clientDAPS
 
-                    reconnect:              client_reconnect,                                // TODO : implemntation
-                    timeout_SESSION:        timeout_SESSION = 10,   // TODO : implemntation
-                    timeout_WAIT_FOR_HELLO: 60
-                }) // bob = new Client()
-            ; // const
+                        reconnect:              client_reconnect,                                // TODO : implemntation
+                        timeout_SESSION:        timeout_SESSION = 10,   // TODO : implemntation
+                        timeout_WAIT_FOR_HELLO: 60
+                    }) // bob = new Client()
+                ; // const
 
-            bob.on('event', async (event) => {
-                console.log(JSON.stringify(event, "", "\t"));
-            });
+                bob.on('event', async (event) => {
+                    console.log(JSON.stringify(event, "", "\t"));
+                });
 
-            bob.on(fsm.state.STATE_ESTABLISHED, async () => {
+                bob.on(fsm.state.STATE_ESTABLISHED, async () => {
 
-                bob.on('data', async (data) => {
+                    bob.on('data', async (data) => {
 
-                    // REM : here we have to do all this application-stuff:
-                    // REM : this will ONLY be triggered AFTER successful initial handshake and will work on "real" data, only...
-                    // - understand, what consumer request.
-                    // - authorization on given assets
+                        // REM : here we have to do all this application-stuff:
+                        // REM : this will ONLY be triggered AFTER successful initial handshake and will work on "real" data, only...
+                        // - understand, what consumer request.
+                        // - authorization on given assets
 
-                    try {
-                        let
-                            proto_message = proto.IdscpMessage,
-                            decoded       = proto_message.decode(data),
-                            result
-                        ;
-
-                        if (decoded.fuaMessage) {
-
+                        try {
                             let
-                                method,
-                                accept,
-                                content_type,
-                                target,
-                                ack
+                                proto_message = proto.IdscpMessage,
+                                decoded       = proto_message.decode(data),
+                                result
                             ;
-                            result = await constructFuaMessage(decoded.fuaMessage);
 
-                            if (result.header) {
-                                method       = result.header.method;
-                                target       = result.header.target;
-                                accept       = (result.header.accept || "applications/json");
-                                content_type = result.header['content-type'];
-                                ack          = result.header.ack;
-                            } // if ()
+                            if (decoded.fuaMessage) {
 
-                            switch (method) {
-                                case "publish":
-                                    let _ack = bob_acks.get(ack);
-                                    if (_ack) {
-                                        _ack.callback(result.payload.error, result.payload.data);
-                                    } // if ()
-                                    break; // publish
-                                default:
-                                    break; // default
-                            } // switch(method)
-                            //console.log(JSON.stringify(result, "", "\t"));
-                        } else if (decoded.idscpData) {
+                                let
+                                    method,
+                                    accept,
+                                    content_type,
+                                    target,
+                                    ack
+                                ;
+                                result = await constructFuaMessage(decoded.fuaMessage);
 
-                        } // if()
+                                if (result.header) {
+                                    method       = result.header.method;
+                                    target       = result.header.target;
+                                    accept       = (result.header.accept || "applications/json");
+                                    content_type = result.header['content-type'];
+                                    ack          = result.header.ack;
+                                } // if ()
 
-                        //console.log(JSON.stringify(decoded.dynamicAttributeToken.token, "", "\t"));
+                                switch (method) {
+                                    case "publish":
+                                        let _ack = bob_acks.get(ack);
+                                        if (_ack) {
+                                            _ack.callback(result.payload.error, result.payload.data);
+                                        } // if ()
+                                        break; // publish
+                                    default:
+                                        break; // default
+                                } // switch(method)
+                                //console.log(JSON.stringify(result, "", "\t"));
+                            } else if (decoded.idscpData) {
 
-                    } catch (jex) {
-                        throw(jex);
-                    } // try
+                            } // if()
 
-                });
+                            //console.log(JSON.stringify(decoded.dynamicAttributeToken.token, "", "\t"));
 
-                let
-                    proto_message            = proto.IdscpMessage,
-                    method                   = "subscribe",
-                    target                   = "urn:idscp:server:heartbeat",
-                    accept                   = "application/json",
-                    ack                      = `${bob.id}ack/${uuid.v4()}`,
-                    server_heartbeat_message = proto_message.create({
-                        fuaMessage: {
-                            header: [
-                                {name: "Method", value: "subscribe"},
-                                {name: "Target", value: "urn:idscp:server:heartbeat"},
-                                {name: "Accept", value: "application/json"},
-                                {name: "ACK", value: ack}
-                            ]
-                        }
-                    }), // server_heartbeat_message
-                    encoded                  = proto_message.encode(server_heartbeat_message).finish(),
-                    //decoded     = proto_message.decode(encoded),
-                    result                   = await bob.write(encoded)
-                ; // let
+                        } catch (jex) {
+                            throw(jex);
+                        } // try
 
-                console.log(`BOB : request : method <${method}>, target: <${target}>, accept <${accept}>`);
+                    });
 
-                bob_acks.set(ack, {
-                    timeout:  undefined,
-                    callback: (error, data) => {
-                        //debugger;
-                        if (error) {
-                            console.log(`BOB : callback : reached : error : <${JSON.stringify(error)}>`);
+                    let
+                        proto_message            = proto.IdscpMessage,
+                        method                   = "subscribe",
+                        target                   = "urn:idscp:server:heartbeat",
+                        accept                   = "application/json",
+                        ack                      = `${bob.id}ack/${uuid.v4()}`,
+                        server_heartbeat_message = proto_message.create({
+                            fuaMessage: {
+                                header: [
+                                    {name: "Method", value: "subscribe"},
+                                    {name: "Target", value: "urn:idscp:server:heartbeat"},
+                                    {name: "Accept", value: "application/json"},
+                                    {name: "ACK", value: ack}
+                                ]
+                            }
+                        }), // server_heartbeat_message
+                        encoded                  = proto_message.encode(server_heartbeat_message).finish(),
+                        //decoded     = proto_message.decode(encoded),
+                        result                   = await bob.write(encoded)
+                    ; // let
+
+                    console.log(`BOB : request : method <${method}>, target: <${target}>, accept <${accept}>`);
+
+                    bob_acks.set(ack, {
+                        timeout:  undefined,
+                        callback: (error, data) => {
+                            //debugger;
+                            if (error) {
+                                console.log(`BOB : callback : reached : error : <${JSON.stringify(error)}>`);
+                                throw(error);
+                            }
+                            console.log(`BOB : callback : reached : data : <${JSON.stringify(data)}>`);
+                        } // callback
+                    });
+
+                    //region grpc (bob as grpc-client)
+
+                    const grpc_meta_data = new grpc.Metadata();
+
+                    grpc_meta_data.add('sid', bob.sid);
+                    //grpc_meta_data.add('DAT', bob.DAT);
+
+                    const loaded_package = grpc.loadPackageDefinition(proto_loaded);
+                    const heartbeat_stub = grpc.loadPackageDefinition(proto_loaded).heartbeat;
+                    const grpc_stub      = new heartbeat_stub(`${server.host}:${grpc_port}`, grpc.credentials.createInsecure());
+                    let get_result       = await grpc_stub.get({}, grpc_meta_data, (error, result) => {
+                        if (error)
                             throw(error);
-                        }
-                        console.log(`BOB : callback : reached : data : <${JSON.stringify(data)}>`);
-                    } // callback
+                        console.log(`BOB : gRPC.heartbeat.get : result : ${JSON.stringify(result)}`);
+                    });
+
+                    //endregion grpc (bob as grpc-client)
+
+                }); // bob.on(fsm.state.STATE_ESTABLISHED)
+
+                bob.connect(() => {
+                    //debugger;
+                });
+                bob.on('error', (error) => {
+                    debugger;
+                });
+                bob.on('end', () => {
+                    debugger;
                 });
 
-                //region grpc (bob as grpc-client)
-                const grpc_meta_data = new grpc.Metadata();
-
-                grpc_meta_data.add('sid', bob.sid);
-                //grpc_meta_data.add('DAT', bob.DAT);
-
-                const loaded_package = grpc.loadPackageDefinition(proto_loaded);
-                const heartbeat_stub = grpc.loadPackageDefinition(proto_loaded).heartbeat;
-                const grpc_stub      = new heartbeat_stub(`${server.host}:${grpc_port}`, grpc.credentials.createInsecure());
-                let get_result       = await grpc_stub.get({}, grpc_meta_data, (error, result) => {
-                    if (error)
-                        throw(error);
-                    console.log(`BOB : heartbeat.get : result : ${JSON.stringify(result)}`);
-                });
-                //endregion grpc (bob as grpc-client)
-
-            }); // bob.on(fsm.state.STATE_ESTABLISHED)
-
-            bob.connect((error, data) => {
-                //debugger;
-            });
-            bob.on('error', (error) => {
+            } catch (jex) {
                 debugger;
-            });
-            bob.on('end', async (that) => {
-                debugger;
-            });
-            bob.on('error', (error) => {
-                debugger;
-            });
-
-        } catch (jex) {
-            debugger;
-            throw(jex);
-        } // try
+                throw(jex);
+            } // try
+        } // if (shield::BOB)
         //endregion client BOB
 
     }); // server.listen

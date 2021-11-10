@@ -11,7 +11,7 @@ const
     {fsm, idscpVersion} = require(`./ids.idscp.fsm`),
     DAPSClient          = require('@nrd/fua.ids.client.daps'),
     {Session}           = require(`./ids.idscp.session`)
-;
+;const http             = require("https");
 
 //region fn
 function sha256(data) {
@@ -23,9 +23,11 @@ function sha256(data) {
 class Server extends EventEmitter {
 
     #id;
+    #schema = "idscp";
     #host;
-    #DAT;
     #port;
+    #DAT;
+
     #sessions   = new Map();
     #timeouts   = new Map();
     #dapsClient = null;
@@ -36,6 +38,7 @@ class Server extends EventEmitter {
 
     constructor({
                     id:      id,
+                    schema:  schema = "idscp",
                     host:    host,
                     port:    port = 8080,
                     DAT:     DAT,
@@ -48,61 +51,68 @@ class Server extends EventEmitter {
                     //endregion DAPS
                     proto: proto = null,
                     //proto_loaded: proto_loaded = null,
-                    authenticate: authenticate,
+                    //authenticate: authenticate,
                     //
-
                     timeout_SESSION:        timeout_SESSION = 10,
                     timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO = 10
                 }) {
 
         super(); // REM EventEmitter
 
-        //const
-        //    timeouts = new Map()
-        //    //sessions = new Map()
-        //;
+        let server = this;
 
-        this.#id   = id;
-        this.#host = host;
-        this.#DAT  = DAT;
-        this.#port = port;
-
-        this.#dapsClient = new DAPSClient({
+        server.#id         = id;
+        server.#schema     = schema;
+        server.#host       = host;
+        server.#port       = port;
+        server.#DAT        = DAT;
+        server.#dapsClient = new DAPSClient({
             dapsUrl:       dapsUrl,
             dapsTokenPath: dapsTokenPath,
             dapsJwksPath:  dapsJwksPath,
             dapsVcPath:    dapsVcPath,
             SKIAKI:        options.cert.meta.SKIAKI,
-            privateKey:    options.cert.privateKey
+            privateKey:    options.cert.privateKey,
+            requestAgent:  new http.Agent({
+                key:                options.tls.key,
+                cert:               options.tls.cert,
+                ca:                 options.tls.ca,
+                requestCert:        options.tls.requestCert,
+                rejectUnauthorized: options.tls.rejectUnauthorized
+            })
         });
 
-        this.#proto = proto;
-        //this.#proto_loaded = proto_loaded;
-
-        let server = this;
+        server.#proto = proto;
 
         // REM : https://nodejs.org/api/tls.html#tlscreateserveroptions-secureconnectionlistener
-        this.#tlsServer = tls.createServer(options.tls, (socket) => {
+        server.#tlsServer = tls.createServer(options.tls, async (socket) => {
 
             server.emit('event', {
-                id:        `${this.#id}event/${uuid.v1()}`,
+                id:        `${server.#id}event/${uuid.v1()}`,
                 timestamp: util.timestamp(),
-                prov:      `${this.#id}listen/}`,
+                prov:      `${server.#id}listen/}`,
                 step:      "tls-this.on.connect",
                 event:     fsm.event.UPPER_START_HANDSHAKE
             });
 
             const
-                id      = `${this.#id}session/${uuid.v4()}`,
+                id      = `${server.#id}session/${uuid.v4()}`,
                 session = new Session({
-                    id:    id,
-                    sid:   sha256(id),
-                    DAT:   this.#DAT,
-                    proto: this.#proto,
-                    //proto_loaded: this.#proto_loaded,
+                    id:           id,
+                    sid:          sha256(id),
+                    DAT:          server.#DAT,
+                    proto:        server.#proto,
                     fsm:          fsm,
                     socket:       socket,
-                    authenticate: authenticate,
+                    authenticate: async (token) => {
+                        try {
+                            let DAT = undefined;
+                            DAT = await server.#dapsClient.validateDat(token);
+                            return DAT;
+                        } catch (jex) {
+                            throw(jex);
+                        } // try
+                    }, // authenticate
                     startedAt:    util.timestamp(),
                     state:        {type: fsm.state.STATE_CLOSED_UNLOCKED},
                     //
@@ -122,12 +132,12 @@ class Server extends EventEmitter {
                     server.emit('data', session, data);
                 });
             });
-            this.#sessions.set(session.sid, {session: session});
+            server.#sessions.set(session.sid, {session: session});
             server.emit('connection', session);
 
         }); // tls.createServer(options.tls)
 
-        this.#tlsServer.on('error', (error) => {
+        server.#tlsServer.on('error', (error) => {
             debugger;
             error;
         });
@@ -135,6 +145,9 @@ class Server extends EventEmitter {
         Object.defineProperties(server, {
             id:           {
                 value: server.#id, enumerable: true
+            },
+            schema:       {
+                value: server.#schema, enumerable: true
             },
             host:         {
                 value: server.#host, enumerable: true
@@ -146,17 +159,17 @@ class Server extends EventEmitter {
                 value: idscpVersion, enumerable: true
             },
             DAT:          {
-                set: (dat) => {
+                set:           (dat) => {
                     server.#DAT = dat;
                 },
-                get: () => {
+                get:           () => {
                     return server.#DAT;
                 }, enumerable: false
             },
             refreshDAT:   {
                 value:         async (daps = "default") => {
                     try {
-                        server.#DAT = await this.#dapsClient.getDat();
+                        server.#DAT = await server.#dapsClient.getDat();
                         return !!server.#DAT;
                     } catch (jex) {
                         throw (jex);
@@ -169,12 +182,13 @@ class Server extends EventEmitter {
                 }, enumerable: false
             },
             listen:       {
-                value:         (
-                                   callback = () => {
-                                   }
-                               ) => {
+                value:         async (
+                    callback = () => {
+                    }
+                ) => {
                     try {
-                        let error = null;
+                        let error   = null;
+                        server.#DAT = await server.#dapsClient.getDat();
                         server.emit('event', {
                             id:        `${server.#id}event/${uuid.v1()}`,
                             timestamp: util.timestamp(),

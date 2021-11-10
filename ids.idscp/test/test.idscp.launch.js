@@ -38,6 +38,7 @@ const
 
             server                  = new Server({
                 id:      "idscp://alice.nicos-rd.com/",
+                schema:  "idscp",
                 host:    "alice.nicos-rd.com",
                 port:    idscp_server_port,
                 DAT:     "ALICE.42424242424242424.abc",
@@ -46,7 +47,7 @@ const
                         key:                server_tls_certificates.key,
                         cert:               server_tls_certificates.cert,
                         ca:                 [server_tls_certificates.ca],
-                        requestCert:        true,
+                        requestCert:        false,
                         rejectUnauthorized: false
                     },
                     cert: connector_certificates
@@ -58,19 +59,19 @@ const
                 dapsVcPath:    dapsVcPath,
                 //endregion DAPS
                 proto:        proto,
-                proto_loaded: proto_loaded,
-                authenticate: async (token) => {
-                    let DAT = {
-                        requestToken: token
-                    };
-                    return DAT;
-                }, // authenticate,
+                //authenticate: async (token) => {
+                //    let DAT = {
+                //        requestToken: token
+                //    };
+                //    return DAT;
+                //}, // authenticate
                 //
                 timeout_WAIT_FOR_HELLO: 60,
                 timeout_SESSION:        60
             }),
             APP                     = require('./test.idscp.app.js')({
-                server:       server,
+                server: server,
+                //proto:        proto,
                 proto:        proto,
                 proto_loaded: proto_loaded,
                 grpc_port:    grpc_server_port,

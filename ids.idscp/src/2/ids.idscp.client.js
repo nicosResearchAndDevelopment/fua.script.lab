@@ -17,18 +17,17 @@ class Client extends EventEmitter {
     #id;
     #sid;
     #DAT;
+    #dapsClient = null;
     #proto;
-    //#proto_loaded;
     #socket;
     #session;
 
     constructor({
-                    id:      id,
-                    DAT:     DAT,
-                    options: options,
-                    proto:   proto,
-                    //proto_loaded: proto_loaded,
-                    authenticate: authenticate,
+                    id:           id,
+                    DAT:          DAT,
+                    options:      options,
+                    proto:        proto,
+                    //authenticate: authenticate,
                     //region clientDAPS
                     dapsUrl:       dapsUrl,
                     dapsTokenPath: dapsTokenPath,
@@ -45,12 +44,13 @@ class Client extends EventEmitter {
 
         super(); // REM EventEmitter
 
-        this.#id    = id;
-        this.#DAT   = DAT;
-        this.#proto = proto;
-        //this.#proto_loaded = proto_loaded;
+        let client = this;
 
-        const dapsClient = new DAPSClient({
+        client.#id    = id;
+        client.#DAT   = DAT;
+        client.#proto = proto;
+
+        client.#dapsClient = new DAPSClient({
             dapsUrl:       dapsUrl,
             dapsTokenPath: dapsTokenPath,
             dapsJwksPath:  dapsJwksPath,
@@ -66,8 +66,6 @@ class Client extends EventEmitter {
             })
         });
 
-        let client = this;
-
         Object.defineProperties(client, {
             id:           {
                 value: client.#id, enumerable: true
@@ -79,10 +77,10 @@ class Client extends EventEmitter {
             },
             DAT:          {
                 set: (dat) => {
-                    this.#DAT = dat;
+                    client.#DAT = dat;
                 },
                 get: () => {
-                    return this.#DAT;
+                    return client.#DAT;
                 }
             }, // DAT
             connect:      {
@@ -94,15 +92,21 @@ class Client extends EventEmitter {
                     ;
 
                     try {
-                        this.#DAT      = await dapsClient.getDat();
+
+                        client.#DAT = await client.#dapsClient.getDat();
+
                         // REM : https://nodejs.org/api/tls.html#tlsconnectoptions-callback
                         client.#socket = tls.connect(options.socket, callback);
 
                         client.#socket.on('connect', (that) => {
 
-                            client.#socket.on('end', (that) => {
+                            client.#socket.on('error', (error) => {
+                                debugger;
+                                client.emit('error', error);
+                            });
+                            client.#socket.on('end', () => {
                                 //debugger;
-                                client.emit('end', that);
+                                client.emit('end');
                             });
                             client.#socket.on('close', (that) => {
                                 //debugger;
@@ -110,13 +114,20 @@ class Client extends EventEmitter {
                             });
 
                             client.#session = new Session({
-                                id:    `${client.#id}session/${uuid.v1()}`,
-                                DAT:   client.#DAT,
-                                proto: client.#proto,
-                                //proto_loaded: client.#proto_loaded,
+                                id:           `${client.#id}session/${uuid.v1()}`,
+                                DAT:          client.#DAT,
+                                proto:        client.#proto,
                                 fsm:          fsm,
                                 socket:       client.#socket,
-                                authenticate: authenticate,
+                                authenticate: async (token) => {
+                                    try {
+                                        let DAT = undefined;
+                                        DAT = await client.#dapsClient.validateDat(token);
+                                        return DAT;
+                                    } catch (jex) {
+                                        throw(jex);
+                                    } // try
+                                }, // authenticate
                                 startedAt:    util.timestamp(),
                                 state:        {type: fsm.state.STATE_CLOSED_UNLOCKED},
                                 //

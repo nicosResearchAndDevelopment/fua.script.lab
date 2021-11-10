@@ -25,18 +25,16 @@ class Session extends EventEmitter {
     #id;
     #sid = null; // REM : !!!
     #proto;
-    //#proto_loaded;
     #state;
     #DAT;
     #socket;
 
     constructor({
-                    id:    id,
-                    sid:   sid = null, // REM : !!!
-                    DAT:   DAT,
-                    fsm:   fsm,
-                    proto: proto,
-                    //proto_loaded: proto_loaded,
+                    id:           id,
+                    sid:          sid = null, // REM : !!!
+                    DAT:          DAT,
+                    fsm:          fsm,
+                    proto:        proto,
                     socket:       socket,
                     authenticate: authenticate,
                     reconnect:    reconnect = false,                                // TODO : implementation
@@ -62,7 +60,6 @@ class Session extends EventEmitter {
         };
 
         session.#proto  = proto;
-        //session.#proto_loaded = proto_loaded;
         session.#DAT    = DAT;
         session.#socket = socket;
 
@@ -101,6 +98,7 @@ class Session extends EventEmitter {
 
         session.#socket.on('data', async (data) => {
             try {
+                //console.log(`${session.id} : data <${data.toString()}>`);
                 let
                     error = null
                 ;
@@ -113,10 +111,8 @@ class Session extends EventEmitter {
                             timeout
                         ;
                         const
-                            proto_message = this.#proto.IdscpMessage,
+                            proto_message = session.#proto.IdscpMessage,
                             decoded       = proto_message.decode(data)
-                            //proto_loaded_message = this.#proto_loaded.IdscpMessage,
-                            //decoded_loaded       = proto_loaded_message.decode(data)
                         ;
 
                         if (decoded.idscpHello) {
@@ -165,7 +161,7 @@ class Session extends EventEmitter {
                     sid:                   session.#sid,
                     version:               idscpVersion,
                     dynamicAttributeToken: {token: Buffer.from(session.#DAT, 'utf-8')},
-                    //dynamicAttributeToken: {token: Buffer.from("session.#DAT", 'utf-8')},
+                    //dynamicAttributeToken: {token: Buffer.from("abc.123.def", 'utf-8')},
                     supportedRaSuite: [],
                     expectedRaSuite:  []
                 }
