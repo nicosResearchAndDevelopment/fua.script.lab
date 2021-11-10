@@ -1,6 +1,7 @@
 const
     EventEmitter              = require('events'),
     tls                       = require('tls'),
+    http                      = require('https'),
     //
     util                      = require('@nrd/fua.core.util'),
     uuid                      = require("@nrd/fua.core.uuid"),
@@ -55,7 +56,14 @@ class Client extends EventEmitter {
             dapsJwksPath:  dapsJwksPath,
             dapsVcPath:    dapsVcPath,
             SKIAKI:        SKIAKI,
-            privateKey:    privateKey
+            privateKey:    privateKey,
+            requestAgent:  new http.Agent({
+                key:                options.socket.key,
+                cert:               options.socket.cert,
+                ca:                 options.socket.ca,
+                requestCert:        options.socket.requestCert,
+                rejectUnauthorized: options.socket.rejectUnauthorized
+            })
         });
 
         let client = this;
@@ -86,7 +94,7 @@ class Client extends EventEmitter {
                     ;
 
                     try {
-                        this.#DAT = await dapsClient.getDat();
+                        this.#DAT      = await dapsClient.getDat();
                         // REM : https://nodejs.org/api/tls.html#tlsconnectoptions-callback
                         client.#socket = tls.connect(options.socket, callback);
 
@@ -129,9 +137,11 @@ class Client extends EventEmitter {
                         }); //  client.#socket.on('connect')
 
                     } catch (jex) {
+                        debugger;
                         error = jex;
                     } // try
-
+                    if (error)
+                        throw(error);
                 }, enumerable: false
             }, // connect
             write:        {

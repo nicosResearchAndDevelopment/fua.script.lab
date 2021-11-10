@@ -125,7 +125,7 @@ class Session extends EventEmitter {
                                 peerDAT = await authenticate(_token)
                             ;
                             if (peerDAT) {
-                                if (!session.#sid)
+                                if (!session.#sid && decoded.idscpHello.sid)
                                     session.#sid = decoded.idscpHello.sid;
                                 session.#state.timeout(/** default */ -1); // REM : kills given timeout for 'STATE_WAIT_FOR_HELLO'
                                 // TODO : DAT.exp? internal session-timeout?
@@ -153,6 +153,7 @@ class Session extends EventEmitter {
                 } // switch(session.#state)
 
             } catch (jex) {
+                debugger;
                 throw(jex);
             } // try
         }); // session.#socket.on('data')
@@ -164,12 +165,14 @@ class Session extends EventEmitter {
                     sid:                   session.#sid,
                     version:               idscpVersion,
                     dynamicAttributeToken: {token: Buffer.from(session.#DAT, 'utf-8')},
-                    supportedRaSuite:      [],
-                    expectedRaSuite:       []
+                    //dynamicAttributeToken: {token: Buffer.from("session.#DAT", 'utf-8')},
+                    supportedRaSuite: [],
+                    expectedRaSuite:  []
                 }
             }),
             encoded       = proto_message.encode(message).finish()
-        ; // let
+            //, decoded = proto_message.decode(encoded)
+        ; // const
 
         session.#socket.write(encoded);
 
