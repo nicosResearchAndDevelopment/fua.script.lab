@@ -71,6 +71,11 @@ class Session extends EventEmitter {
             id:    {
                 value: session.#id, enumerable: true
             },
+            idscpVersion:   {
+                get:           () => {
+                    return idscpVersion;
+                }, enumerable: true
+            },
             sid:   {
                 get:           () => {
                     return session.#sid;
@@ -128,6 +133,7 @@ class Session extends EventEmitter {
                             if (peerDAT) {
                                 if (!session.#sid && decoded.idscpHello.sid)
                                     session.#sid = decoded.idscpHello.sid;
+                                session.#DAT = peerDAT;
                                 session.#state.timeout(/** default */ -1); // REM : kills given timeout for 'STATE_WAIT_FOR_HELLO'
                                 // TODO : DAT.exp? internal session-timeout?
                                 timeout        = undefined; // timeout_SESSION;

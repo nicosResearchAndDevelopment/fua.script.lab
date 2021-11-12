@@ -3,6 +3,7 @@ const
     path                = require('path'),
     crypto              = require("crypto"),
     EventEmitter        = require('events'),
+    http                = require("https"),
     tls                 = require('tls'),
     //
     util                = require('@nrd/fua.core.util'),
@@ -11,7 +12,7 @@ const
     {fsm, idscpVersion} = require(`./ids.idscp.fsm`),
     DAPSClient          = require('@nrd/fua.ids.client.daps'),
     {Session}           = require(`./ids.idscp.session`)
-;const http             = require("https");
+; // const
 
 //region fn
 function sha256(data) {
@@ -37,12 +38,13 @@ class Server extends EventEmitter {
     //#proto_loaded;
 
     constructor({
-                    id:      id,
-                    schema:  schema = "idscp",
-                    host:    host,
-                    port:    port = 8080,
-                    DAT:     DAT,
-                    options: options = null,
+                    id:         id,
+                    sid_secret: sid_secret = undefined,
+                    schema:     schema = "idscp",
+                    host:       host,
+                    port:       port = 8080,
+                    DAT:        DAT,
+                    options:    options = null,
                     //region DAPS
                     daps_register: daps_register,
                     dapsUrl:       dapsUrl,
@@ -62,11 +64,11 @@ class Server extends EventEmitter {
 
         let server = this;
 
-        server.#id            = id;
-        server.#schema        = schema;
-        server.#host          = host;
-        server.#port          = port;
-        server.#DAT           = DAT;
+        server.#id     = id;
+        server.#schema = schema;
+        server.#host   = host;
+        server.#port   = port;
+        server.#DAT    = DAT;
         //server.#daps_register = daps_register;
 
         server.#dapsClient = new DAPSClient({

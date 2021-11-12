@@ -22,13 +22,15 @@ message IdscpMessage {
 
         //region application-layer :: idscp
 
-        IdscpWelcome idscpWelcome = 1000;
+        IdscpGenericMessage idscpGenericMessage = 1000;
+        IdscpAppWelcome idscpAppWelcome = 1001;
+        IdscpAppGoodbye idscpAppGoodbye = 1002;
 
         //endregion application-layer :: idscp
 
         //region application-layer :: custom-layer
 
-        // region application-layer :: custom-layer :: fua-extension
+        //region application-layer :: custom-layer :: fua-extension
         FuaMessage fuaMessage = 100001;
         //endregion application-layer :: custom-layer :: fua-extension
 
@@ -99,25 +101,11 @@ message IdscpAck {
 
 //region idscp application-layer
 
-//region Welcome
-message IdscpApplicationFunction {
-    string name = 1;
-}
-message IdscpApplication {
-    string application_type = 1;
-    string version = 2;
-    repeated IdscpApplicationFunction function = 3;
-}
+//region idscp application-layer :: idscp
+// REM : message id-range (1000..99999)
 
-message IdscpUpgrade {
-    repeated IdscpApplication application = 1;
-}
-
-message IdscpWelcome {
-    repeated IdscpHeader header = 1;
-    IdscpUpgrade upgrade = 2;
-}
-//endregion Welcome
+// REM : idscp application-layer sends those messages, transporting "main" payload, the subjects-of-interest
+//       of given application
 
 message IdscpHeader {
     string name = 1;
@@ -125,17 +113,57 @@ message IdscpHeader {
 }
 
 message IdscpGenericMessage {
+    // REM : message id 1000
     repeated IdscpHeader header = 1;
     bytes payload = 2;
 }
 
+//region idscp application-layer :: idscp :: welcome
 
+// REM : "welcome" can be triggered at any time (maybe to update some information/configuration, etc.)
+//       given application
 
+message IdscpAppWelcome {
+    // REM : message id 1001
+    repeated IdscpHeader header = 1;
+    bytes payload = 2;
+    // REM : EXPERIMENTAL >>>>>>>>>>
+    IdscpUpgrade upgrade = 3; // REM : this can be also transferred to payload...
+    // REM : EXPERIMENTAL <<<<<<<<<<
+} // message IdscpWelcome
 
+message IdscpAppGoodbye {
+    // REM : message id 1002
+    repeated IdscpHeader header = 1;
+    bytes payload = 2;
+    // REM : EXPERIMENTAL >>>>>>>>>>
+    IdscpUpgrade upgrade = 3; // REM : this can be also transferred to payload...
+    // REM : EXPERIMENTAL <<<<<<<<<<
+} // message IdscpWelcome
 
-//endregion idscp application-layer
+// REM : EXPERIMENTAL >>>>>>>>>>
+message IdscpApplicationFunction {
+    string name = 1;
+}
+message IdscpApplication {
+    string applicationType = 1;
+    string version = 2;
+    repeated IdscpApplicationFunction function = 3;
+}
+message IdscpUpgrade {
+    repeated IdscpApplication application = 1;
+}
+// REM : EXPERIMENTAL <<<<<<<<<<
 
-//region fua (Framework Universe Architecture)
+//endregion idscp application-layer :: idscp :: Welcome
+
+//endregion idscp application-layer :: idscp
+
+//region application-layer :: custom-layer
+
+// REM : there is only ONE restriction for a user (customer): used message-ids >= 100000
+
+//region application-layer :: custom-layer :: fua-extension (Framework Universe Architecture)
 
 // REM : NOT used so far
 message FuaError {
@@ -151,16 +179,10 @@ message FuaHeader {
 }
 
 message FuaMessage {
+    // // REM : message id 100001
     repeated FuaHeader header = 1;
     bytes payload = 2;
 }
-
-//message FuaPayload {
-//    oneof data {
-//        IdscpData idscpData = 1;
-//        FuaData fuaData = 2;
-//    }
-//}
 
 message FuaHeartbeat {
     string id = 1;
@@ -170,7 +192,7 @@ message FuaHeartbeat {
 message noParameter {}
 
 service heartbeat {
-    rpc get(noParameter) returns (FuaHeartbeat) {}
+    rpc get(noParameter) returns (FuaHeartbeat) {};
 }
 
 message RandomRange {
@@ -200,5 +222,11 @@ message Result {
 service calculate {
     rpc add(stream Values) returns (stream Result);
 }
+
+//region application-layer :: custom-layer :: fua-extension (Framework Universe Architecture)
+
+//region application-layer :: custom-layer
+
+//endregion idscp application-layer
 
 //endregion fua

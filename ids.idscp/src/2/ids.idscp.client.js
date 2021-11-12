@@ -21,6 +21,7 @@ class Client extends EventEmitter {
     #proto;
     #socket;
     #session;
+
     //#daps_register;
 
     constructor({
@@ -48,9 +49,9 @@ class Client extends EventEmitter {
 
         let client = this;
 
-        client.#id            = id;
-        client.#DAT           = DAT;
-        client.#proto         = proto;
+        client.#id    = id;
+        client.#DAT   = DAT;
+        client.#proto = proto;
         //client.#daps_register = daps_register;
 
         client.#dapsClient = new DAPSClient({
@@ -74,6 +75,9 @@ class Client extends EventEmitter {
             id:           {
                 value: client.#id, enumerable: true
             },
+            idscpVersion: {
+                value: idscpVersion, enumerable: true
+            },
             sid:          {
                 get:           () => {
                     return client.#session.sid;
@@ -87,6 +91,11 @@ class Client extends EventEmitter {
                     return client.#DAT;
                 }
             }, // DAT
+            peerDAT:          {
+                get: () => {
+                    return client.#session.DAT;
+                }
+            }, // peerDAT
             connect:      {
                 value:         async (callback) => {
 
@@ -167,10 +176,8 @@ class Client extends EventEmitter {
                         throw(jex);
                     } // try
                 }, enumerable: false
-            }, // write
-            idscpVersion: {
-                value: idscpVersion, enumerable: true
-            }
+            } // write
+
         }); // Object.defineProperties(client)
 
         return client;
@@ -179,6 +186,7 @@ class Client extends EventEmitter {
 
 } // Client
 
-exports.Client = Client;
+exports
+    .Client = Client;
 
 // EOF
