@@ -5,6 +5,8 @@ syntax = "proto3";
 message IdscpMessage {
     // One of the following will be filled in.
     oneof message {
+
+        //region core
         IdscpHello idscpHello = 1;
         IdscpClose idscpClose = 2;
         IdscpDatExpired idscpDatExpired = 3;
@@ -14,11 +16,29 @@ message IdscpMessage {
         IdscpRaVerifier idscpRaVerifier = 7;
         IdscpData idscpData = 8;
         IdscpAck idscpAck = 9;
-        //region fua-extension
-        FuaMessage fuaMessage = 10;
-        //endregion fua-extension
-    }
-}
+        //endregion core
+
+        //region application-layer
+
+        //region application-layer :: idscp
+
+        IdscpWelcome idscpWelcome = 1000;
+
+        //endregion application-layer :: idscp
+
+        //region application-layer :: custom-layer
+
+        // region application-layer :: custom-layer :: fua-extension
+        FuaMessage fuaMessage = 100001;
+        //endregion application-layer :: custom-layer :: fua-extension
+
+        //endregion application-layer :: custom-layer
+
+        //endregion application-layer :: application-layer
+
+    } // oneof message
+
+} // message IdscpMessage
 
 
 //IDSCP messages
@@ -77,6 +97,44 @@ message IdscpAck {
     bool alternating_bit = 1;
 }
 
+//region idscp application-layer
+
+//region Welcome
+message IdscpApplicationFunction {
+    string name = 1;
+}
+message IdscpApplication {
+    string application_type = 1;
+    string version = 2;
+    repeated IdscpApplicationFunction function = 3;
+}
+
+message IdscpUpgrade {
+    repeated IdscpApplication application = 1;
+}
+
+message IdscpWelcome {
+    repeated IdscpHeader header = 1;
+    IdscpUpgrade upgrade = 2;
+}
+//endregion Welcome
+
+message IdscpHeader {
+    string name = 1;
+    string value = 2;
+}
+
+message IdscpGenericMessage {
+    repeated IdscpHeader header = 1;
+    bytes payload = 2;
+}
+
+
+
+
+
+//endregion idscp application-layer
+
 //region fua (Framework Universe Architecture)
 
 // REM : NOT used so far
@@ -114,4 +172,33 @@ message noParameter {}
 service heartbeat {
     rpc get(noParameter) returns (FuaHeartbeat) {}
 }
+
+message RandomRange {
+    float lower = 1;
+    float upper = 2;
+}
+
+message Random {
+    string timestamp = 1;
+    float value = 2;
+}
+
+service random {
+    rpc stream(RandomRange) returns (stream Random);
+}
+
+message Values {
+    float left = 1;
+    float right = 2;
+}
+
+message Result {
+    string type = 1;
+    string value = 2;
+}
+
+service calculate {
+    rpc add(stream Values) returns (stream Result);
+}
+
 //endregion fua

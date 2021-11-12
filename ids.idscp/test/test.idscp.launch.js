@@ -53,12 +53,22 @@ const
                     cert: connector_certificates
                 },
                 //region DAPS
+                daps_register: {
+                    "https://testbed.nicos-rd.com:8080": {
+                        default:            true,
+                        http_agent_options: undefined,
+                        tokenPath:          "/token",
+                        jwksPath:           "/.well-known/jwks.json",
+                        vcPath:             "/vc",
+                        jwksStore:          "REM : set at runtime"
+                    }
+                },
                 dapsUrl:       dapsUrl,
                 dapsTokenPath: dapsTokenPath,
                 dapsJwksPath:  dapsJwksPath,
                 dapsVcPath:    dapsVcPath,
                 //endregion DAPS
-                proto:        proto,
+                proto: proto,
                 //authenticate: async (token) => {
                 //    let DAT = {
                 //        requestToken: token
@@ -81,6 +91,16 @@ const
                 client_connector_certificates:  require(`./cert/client/connector/client.js`),
                 client_request_cert:            false,
                 client_reject_unauthorized:     false,
+                client_daps_register:           {
+                    "https://testbed.nicos-rd.com:8080": {
+                        default:            true,
+                        http_agent_options: undefined,
+                        tokenPath:          "/token",
+                        jwksPath:           "/.well-known/jwks.json",
+                        vcPath:             "/vc",
+                        jwksStore:          "REM : set at runtime"
+                    }
+                },
                 client_daps_host:               daps_host,
                 client_daps_port:               daps_port,
                 client_daps_token_path:         dapsTokenPath,

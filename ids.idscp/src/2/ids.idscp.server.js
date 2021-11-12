@@ -23,11 +23,11 @@ function sha256(data) {
 class Server extends EventEmitter {
 
     #id;
-    #schema = "idscp";
+    #schema     = "idscp";
     #host;
     #port;
     #DAT;
-
+    //#daps_register;
     #sessions   = new Map();
     #timeouts   = new Map();
     #dapsClient = null;
@@ -44,6 +44,7 @@ class Server extends EventEmitter {
                     DAT:     DAT,
                     options: options = null,
                     //region DAPS
+                    daps_register: daps_register,
                     dapsUrl:       dapsUrl,
                     dapsTokenPath: dapsTokenPath,
                     dapsJwksPath:  dapsJwksPath,
@@ -61,12 +62,15 @@ class Server extends EventEmitter {
 
         let server = this;
 
-        server.#id         = id;
-        server.#schema     = schema;
-        server.#host       = host;
-        server.#port       = port;
-        server.#DAT        = DAT;
+        server.#id            = id;
+        server.#schema        = schema;
+        server.#host          = host;
+        server.#port          = port;
+        server.#DAT           = DAT;
+        //server.#daps_register = daps_register;
+
         server.#dapsClient = new DAPSClient({
+            daps_register: daps_register,
             dapsUrl:       dapsUrl,
             dapsTokenPath: dapsTokenPath,
             dapsJwksPath:  dapsJwksPath,
@@ -107,7 +111,7 @@ class Server extends EventEmitter {
                     authenticate: async (token) => {
                         try {
                             let DAT = undefined;
-                            DAT = await server.#dapsClient.validateDat(token);
+                            DAT     = await server.#dapsClient.validateDat(token);
                             return DAT;
                         } catch (jex) {
                             throw(jex);
@@ -128,6 +132,9 @@ class Server extends EventEmitter {
 
             // REM : fired ONLY, if it's running under <fsm.state.STATE_ESTABLISHED>
             session.on(fsm.state.STATE_ESTABLISHED, () => {
+
+                server.emit(fsm.state.STATE_ESTABLISHED, session);
+
                 session.on('data', (data) => {
                     server.emit('data', session, data);
                 });

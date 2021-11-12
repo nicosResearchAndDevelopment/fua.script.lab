@@ -11,14 +11,18 @@ const
     {fsm, wait, idscpVersion} = require(`./ids.idscp.fsm`)
 ;
 
+//region fn
+
 function sha256(data) {
     return crypto.createHash("sha256").update(data, "binary").digest("base64");
     //                                               ------  binary: hash the byte string
 }
 
-function IdscpAck(socket) {
-    socket.write(message);
-}
+//function IdscpAck(socket) {
+//    socket.write(message);
+//}
+
+//endregion fn
 
 class Session extends EventEmitter {
 
@@ -100,6 +104,7 @@ class Session extends EventEmitter {
             try {
                 //console.log(`${session.id} : data <${data.toString()}>`);
                 let
+                    is_client = false,
                     error = null
                 ;
 

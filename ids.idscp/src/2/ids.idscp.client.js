@@ -21,14 +21,16 @@ class Client extends EventEmitter {
     #proto;
     #socket;
     #session;
+    //#daps_register;
 
     constructor({
-                    id:           id,
-                    DAT:          DAT,
-                    options:      options,
-                    proto:        proto,
+                    id:      id,
+                    DAT:     DAT,
+                    options: options,
+                    proto:   proto,
                     //authenticate: authenticate,
                     //region clientDAPS
+                    daps_register: daps_register,
                     dapsUrl:       dapsUrl,
                     dapsTokenPath: dapsTokenPath,
                     dapsJwksPath:  dapsJwksPath,
@@ -46,11 +48,13 @@ class Client extends EventEmitter {
 
         let client = this;
 
-        client.#id    = id;
-        client.#DAT   = DAT;
-        client.#proto = proto;
+        client.#id            = id;
+        client.#DAT           = DAT;
+        client.#proto         = proto;
+        //client.#daps_register = daps_register;
 
         client.#dapsClient = new DAPSClient({
+            daps_register: daps_register,
             dapsUrl:       dapsUrl,
             dapsTokenPath: dapsTokenPath,
             dapsJwksPath:  dapsJwksPath,
@@ -122,7 +126,7 @@ class Client extends EventEmitter {
                                 authenticate: async (token) => {
                                     try {
                                         let DAT = undefined;
-                                        DAT = await client.#dapsClient.validateDat(token);
+                                        DAT     = await client.#dapsClient.validateDat(token);
                                         return DAT;
                                     } catch (jex) {
                                         throw(jex);
