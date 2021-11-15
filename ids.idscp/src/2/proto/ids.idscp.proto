@@ -165,6 +165,8 @@ message IdscpUpgrade {
 
 //region application-layer :: custom-layer :: fua-extension (Framework Universe Architecture)
 
+// REM : following protobuf-messages and gRPC-services are for developing and testing purposes only!
+
 // REM : NOT used so far
 message FuaError {
     string id = 1;
@@ -210,8 +212,9 @@ service random {
 }
 
 message Values {
-    float left = 1;
-    float right = 2;
+    string sid = 1; // REM : we have to put it in here, because it is a stream
+    float left = 2;
+    float right = 3;
 }
 
 message Result {
@@ -222,6 +225,32 @@ message Result {
 service calculate {
     rpc add(stream Values) returns (stream Result);
 }
+
+
+message Value {
+    string type = 1;
+    string value = 2;
+    //    string timestamp = 3;
+}
+
+//region time
+enum TimeConstraintOperator {
+    BEFORE = 0;
+} // enum Operator
+
+message TimeConstraint {
+
+    Value leftOperand = 1;
+    TimeConstraintOperator operator = 2;
+    Value rightOperand = 3;
+
+} // message TimeConstraint
+
+service time {
+    rpc constraint(TimeConstraint) returns (Value) {};
+}
+//endregion time
+
 
 //region application-layer :: custom-layer :: fua-extension (Framework Universe Architecture)
 

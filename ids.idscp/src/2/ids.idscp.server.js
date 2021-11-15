@@ -15,24 +15,29 @@ const
 ; // const
 
 //region fn
-function sha256(data) {
-    return crypto.createHash("sha256").update(data, "binary").digest("base64");
+function sidHasher(sid_hash_alg, sid, salt) {
+    //return crypto.createHash(sid_hash_alg).update(data, "binary").digest("base64");
+
+    return crypto.createHash(sid_hash_alg.toLowerCase()).update(((salt) ? `${sid}${salt}` : sid), 'utf8').digest('hex');
     //                                               ------  binary: hash the byte string
 }
 
 //endregion fn
-class Server extends EventEmitter {
+//class Server extends EventEmitter {
+class Server extends http.Server {
 
     #id;
-    #schema     = "idscp";
+    #schema        = "idscp";
     #host;
     #port;
     #DAT;
     //#daps_register;
-    #sessions   = new Map();
-    #timeouts   = new Map();
-    #dapsClient = null;
-    #tlsServer  = null;
+    #sessions      = new Map();
+    #timeouts      = new Map();
+    #dapsClient    = null;
+    #tlsServer     = null;
+    #sid_hash_alg  = undefined;
+    #sid_hash_salt = "";
     #proto;
 
     //#proto_loaded;
@@ -51,6 +56,9 @@ class Server extends EventEmitter {
                     dapsTokenPath: dapsTokenPath,
                     dapsJwksPath:  dapsJwksPath,
                     dapsVcPath:    dapsVcPath,
+                    sid_hash_alg:  sid_hash_alg = undefined,
+                    sid_hash_salt: sid_hash_salt = "",
+                    dapsCustom:    dapsCustom = undefined,
                     //endregion DAPS
                     proto: proto = null,
                     //proto_loaded: proto_loaded = null,
@@ -64,22 +72,26 @@ class Server extends EventEmitter {
 
         let server = this;
 
-        server.#id     = id;
-        server.#schema = schema;
-        server.#host   = host;
-        server.#port   = port;
-        server.#DAT    = DAT;
+        server.#id            = id;
+        server.#schema        = schema;
+        server.#host          = host;
+        server.#port          = port;
+        server.#DAT           = DAT;
+        server.#sid_hash_alg  = (sid_hash_alg || server.#sid_hash_alg);
+        server.#sid_hash_salt = (sid_hash_salt || server.#sid_hash_salt);
+
         //server.#daps_register = daps_register;
 
         server.#dapsClient = new DAPSClient({
-            daps_register: daps_register,
-            dapsUrl:       dapsUrl,
-            dapsTokenPath: dapsTokenPath,
-            dapsJwksPath:  dapsJwksPath,
-            dapsVcPath:    dapsVcPath,
-            SKIAKI:        options.cert.meta.SKIAKI,
-            privateKey:    options.cert.privateKey,
-            requestAgent:  new http.Agent({
+            daps_register:    daps_register,
+            dapsUrl:          dapsUrl,
+            dapsTokenPath:    dapsTokenPath,
+            dapsJwksPath:     dapsJwksPath,
+            dapsVcPath:       dapsVcPath,
+            tweak_DAT_custom: dapsCustom,
+            SKIAKI:           options.cert.meta.SKIAKI,
+            privateKey:       options.cert.privateKey,
+            requestAgent:     new http.Agent({
                 key:                options.tls.key,
                 cert:               options.tls.cert,
                 ca:                 options.tls.ca,
@@ -105,7 +117,7 @@ class Server extends EventEmitter {
                 id      = `${server.#id}session/${uuid.v4()}`,
                 session = new Session({
                     id:           id,
-                    sid:          sha256(id),
+                    sid:          sidHasher(server.#sid_hash_alg, id, ""),
                     DAT:          server.#DAT,
                     proto:        server.#proto,
                     fsm:          fsm,
@@ -141,7 +153,7 @@ class Server extends EventEmitter {
                     server.emit('data', session, data);
                 });
             });
-            server.#sessions.set(session.sid, {session: session});
+            server.#sessions.set(sidHasher(server.#sid_hash_alg, session.sid, server.#sid_hash_salt), {session: session});
             server.emit('connection', session);
 
         }); // tls.createServer(options.tls)

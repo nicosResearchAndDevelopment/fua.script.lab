@@ -18,8 +18,10 @@ const
             proto_loaded            = proto_loader.loadSync("../src/2/proto/ids.idscp.proto",
                 {
                     keepCase: true,
+                    longs:    String,
+                    enums:    String,
                     defaults: true,
-                    enums:    String
+                    oneofs:   true
                 }
             ),
             server_tls_certificates = require(`./cert/server/tls-server/server.js`),
@@ -34,15 +36,26 @@ const
             dapsTokenPath           = "/token",
             dapsJwksPath            = "/.well-known/jwks.json",
             dapsVcPath              = "/vc",
+            //region DAPS custom
+            // 'sha1', 'md5', 'sha256', 'sha512'
+            sid_hash_alg            = "sha256",
+            sid_hash_salt           = "mahlzeit",
+            //endregion DAPS custom
             //endregion DAPS
 
             server                  = new Server({
-                id:      "idscp://alice.nicos-rd.com/",
-                schema:  "idscp",
-                host:    "alice.nicos-rd.com",
-                port:    idscp_server_port,
-                DAT:     "ALICE.42424242424242424.abc",
-                options: {
+                id:            "idscp://alice.nicos-rd.com/",
+                schema:        "idscp",
+                host:          "alice.nicos-rd.com",
+                port:          idscp_server_port,
+                DAT:           "ALICE.42424242424242424.abc",
+                sid_hash_alg:  sid_hash_alg,
+                sid_hash_salt: sid_hash_salt,
+                dapsCustom:    {
+                    sid_hash_alg:  sid_hash_alg,
+                    sid_hash_salt: sid_hash_salt
+                },
+                options:       {
                     tls:  {
                         key:                server_tls_certificates.key,
                         cert:               server_tls_certificates.cert,
