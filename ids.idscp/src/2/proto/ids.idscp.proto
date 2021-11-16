@@ -1,5 +1,11 @@
 syntax = "proto3";
 
+// REM : this protobuf shows some experimental extension.
+// ######################################################
+//       DON'T USE IT FOR PRODUCTION!!!!!!!!!!!!!!!!!!!!!
+// ######################################################
+
+
 //IDSCP message frame
 
 message IdscpMessage {
@@ -46,13 +52,9 @@ message IdscpMessage {
 //IDSCP messages
 message IdscpHello {
     int32 version = 1;
-    //IDSCP protocol version
     IdscpDat dynamicAttributeToken = 2;     //initial dynamicAttributeToken
     repeated string supportedRaSuite = 3;  //RemoteAttestationCipher prover
     repeated string expectedRaSuite = 4;   //RemoteAttestationCipher verifier
-   //region fua-extension
-    string sid = 5;
-    //endregion fua-extension
 }
 
 message IdscpClose {
@@ -99,11 +101,14 @@ message IdscpAck {
     bool alternating_bit = 1;
 }
 
+// #################################################################
+// #################################################################
+// #################################################################
+
 //region idscp application-layer
 
 //region idscp application-layer :: idscp
 // REM : message id-range (1000..99999)
-
 // REM : idscp application-layer sends those messages, transporting "main" payload, the subjects-of-interest
 //       of given application
 
@@ -118,7 +123,7 @@ message IdscpGenericMessage {
     bytes payload = 2;
 }
 
-//region idscp application-layer :: idscp :: welcome
+//region idscp application-layer :: idscp :: Welcome and Goodbye
 
 // REM : "welcome" can be triggered at any time (maybe to update some information/configuration, etc.)
 //       given application
@@ -127,37 +132,23 @@ message IdscpAppWelcome {
     // REM : message id 1001
     repeated IdscpHeader header = 1;
     bytes payload = 2;
-    // REM : EXPERIMENTAL >>>>>>>>>>
-    IdscpUpgrade upgrade = 3; // REM : this can be also transferred to payload...
-    // REM : EXPERIMENTAL <<<<<<<<<<
-} // message IdscpWelcome
+} // message IdscpAppWelcome
 
 message IdscpAppGoodbye {
     // REM : message id 1002
     repeated IdscpHeader header = 1;
     bytes payload = 2;
-    // REM : EXPERIMENTAL >>>>>>>>>>
-    IdscpUpgrade upgrade = 3; // REM : this can be also transferred to payload...
-    // REM : EXPERIMENTAL <<<<<<<<<<
-} // message IdscpWelcome
+} // message IdscpAppGoodbye
 
-// REM : EXPERIMENTAL >>>>>>>>>>
-message IdscpApplicationFunction {
-    string name = 1;
-}
-message IdscpApplication {
-    string applicationType = 1;
-    string version = 2;
-    repeated IdscpApplicationFunction function = 3;
-}
-message IdscpUpgrade {
-    repeated IdscpApplication application = 1;
-}
-// REM : EXPERIMENTAL <<<<<<<<<<
-
-//endregion idscp application-layer :: idscp :: Welcome
+//endregion idscp application-layer :: idscp :: Welcome and Goodbye
 
 //endregion idscp application-layer :: idscp
+
+// #################################################################
+// #################################################################
+// #################################################################
+
+// REM : message id-range > 100001
 
 //region application-layer :: custom-layer
 
@@ -208,13 +199,16 @@ message Random {
 }
 
 service random {
+    // REM : what it does:
+    //       puts in a random-range and gets a stream back: random numbers in this range
     rpc stream(RandomRange) returns (stream Random);
 }
 
 message Values {
-    string sid = 1; // REM : we have to put it in here, because it is a stream
-    float left = 2;
-    float right = 3;
+    string id = 1; // REM : we have to put it in here, because we want to find the result, again.
+    string sid = 2; // REM : we have to put it in here, because it is a stream
+    float left = 3;
+    float right = 4;
 }
 
 message Result {
@@ -223,39 +217,46 @@ message Result {
 }
 
 service calculate {
-    rpc add(stream Values) returns (stream Result);
+    // REM : what it does:
+   //       puts in a value-stream and gets back a stream of results, simply adding
+    //      Values.left + Values.right
+    rpc add(stream Values) returns (stream MetaValue);
 }
 
+message MetaValue {
+    string id = 1;
+    string prov = 2;
+    string timestamp = 3;
+    Value value = 4;
+}
 
 message Value {
     string type = 1;
     string value = 2;
-    //    string timestamp = 3;
 }
 
 //region time
+
+// seeAlso: <https://github.com/nicosResearchAndDevelopment/nrd-motic/blob/master/decide/operator/time.md>
+
 enum TimeConstraintOperator {
     BEFORE = 0;
 } // enum Operator
 
 message TimeConstraint {
-
     Value leftOperand = 1;
     TimeConstraintOperator operator = 2;
     Value rightOperand = 3;
-
 } // message TimeConstraint
 
 service time {
     rpc constraint(TimeConstraint) returns (Value) {};
 }
-//endregion time
 
+//endregion time
 
 //region application-layer :: custom-layer :: fua-extension (Framework Universe Architecture)
 
 //region application-layer :: custom-layer
 
 //endregion idscp application-layer
-
-//endregion fua

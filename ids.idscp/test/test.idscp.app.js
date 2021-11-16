@@ -1,16 +1,16 @@
 const
-    crypto        = require('crypto'),
-    protobuf      = require("protobufjs"),
+    crypto                   = require('crypto'),
+    protobuf                 = require("protobufjs"),
     //grpc          = require("grpc"),
 
     //
-    util          = require('@nrd/fua.core.util'),
-    uuid          = require("@nrd/fua.core.uuid"),
+    util                     = require('@nrd/fua.core.util'),
+    uuid                     = require("@nrd/fua.core.uuid"),
     //
-    {Client, fsm} = require(`../src/2/ids.idscp`),
+    {Client, fsm, idscpUtil} = require(`../src/2/ids.idscp`),
     //region gRPC
-    grpc          = require('@grpc/grpc-js'),
-    proto_loader  = require('@grpc/proto-loader')
+    grpc                     = require('@grpc/grpc-js'),
+    proto_loader             = require('@grpc/proto-loader')
     //endregion gRPC
 ; // const
 
@@ -127,12 +127,13 @@ module.exports = async ({
                     application: [{
                         applicationType: "grpc",
                         version:         "42",
+                        port:            `${grpc_port}`,
                         service:         [
                             {
-                                name: "heartbeat { rpc get(noParameter) returns (FuaHeartbeat) {} }"
+                                name: "heartbeat"
                             },
                             {
-                                name: "random { rpc stream(RandomRange) returns (stream Random) }"
+                                name: "random"
                             }
                         ] // service
                     }] // application
@@ -148,24 +149,11 @@ module.exports = async ({
                         {name: "Content-Type", value: "application/json"},
                         {name: "Content-Length", value: `${payload.byteLength}`}
                     ],
-                    payload: payload,
-                    upgrade: {
-                        application: [{
-                            applicationType: "grpc",
-                            port:            grpc_port,
-                            version:         "42",
-                            function:        [{
-                                name: "heartbeat.get"
-                            },
-                                {
-                                    name: "time.constraint"
-                                }]
-                        }]
-                    }
+                    payload: payload
                 }
             }),
             encoded       = proto_message.encode(message).finish()
-            //, decoded     = proto_message.decode(encoded)
+            , decoded     = proto_message.decode(encoded)
         ; // const
         session.write(encoded);
     }); // server.on('clientTimeout')
@@ -338,14 +326,19 @@ module.exports = async ({
         function calculate_add(call, callback) {
             let
                 error = null,
-                Result
+                MetaValue
             ;
             //if (server.hasSession(sid)) { // REM : core-level of access-control
             call.on('data', function (Values) {
                 if (server.hasSession(Values.sid)) {
-                    Result = {type: "xsd:float", value: `${Values.left + Values.right}`};
+                    MetaValue = {
+                        id:        `${server.id}result/${uuid.v4()}`,
+                        prov:      Values.id,
+                        timestamp: util.timestamp(),
+                        value:     {type: "xsd:float", value: `${Values.left + Values.right}`}
+                    };
                     //callback(error, Result);
-                    call.write(Result);
+                    call.write(MetaValue);
                 } else {
                     call.end();
                 } // if ()
@@ -476,6 +469,7 @@ module.exports = async ({
                         //        }] // application
                         //    } // upgrade
                         //}), 'utf-8'),
+                        payload       = undefined,
                         message       = proto_message.create({
                             idscpAppWelcome: {
                                 header:  [
@@ -486,20 +480,11 @@ module.exports = async ({
                                     //{name: "Content-Type", value: "application/json"},
                                     {name: "Content-Length", value: `${0}`}
                                 ],
-                                payload: undefined
-                                //upgrade: {
-                                //    application: [{
-                                //        applicationType: "grpc",
-                                //        version:         "42",
-                                //        function:        [{
-                                //            name: "heartbeat.get"
-                                //        }]
-                                //    }]
-                                //}
+                                payload: payload
                             }
                         }),
                         encoded       = proto_message.encode(message).finish()
-                        , decoded     = proto_message.decode(encoded)
+                        //, decoded     = proto_message.decode(encoded)
                     ; // const
 
                     bob.write(encoded);
@@ -524,19 +509,30 @@ module.exports = async ({
 
                                     console.log(`BOB : idscpAppWelcome by <${bob.peerDAT.referringConnector}>, <${JSON.stringify(decoded[decoded.message], "", "\t")}>`);
 
-                                    //region grpc (bob as grpc-client)
-
                                     const
+                                        message_header  = idscpUtil.getProtoHeader(decoded[decoded.message].header),
                                         grpc_server_url = `${server.host}:${grpc_port}`,
                                         grpc_meta_data  = new grpc.Metadata()
                                     ;
-                                    let sid_            = undefined;
-                                    if (bob.peerDAT?.custom && bob.peerDAT.custom.sid_hash_alg) {
-                                        sid_ = crypto.createHash(bob.peerDAT.custom.sid_hash_alg.toLowerCase()).update(((bob.peerDAT.custom.sid_hash_salt) ? `${bob.sid}${bob.peerDAT.custom.sid_hash_salt}` : bob.sid), 'utf8').digest('hex');
-                                    }
+                                    let message_payload;
 
-                                    grpc_meta_data.add('sid', (sid_ || bob.sid));
-                                    //grpc_meta_data.add('DAT', bob.DAT);
+                                    if (decoded[decoded.message].payload) {
+                                        // TODO : Content-Typing...
+                                        message_payload = JSON.parse(decoded[decoded.message].payload.toString());
+                                        // TODO : fetch gRPC-port
+                                        debugger;
+                                    } // if ()
+
+                                    if (message_header.sid)
+                                        if (bob.peerDAT?.custom && bob.peerDAT.custom.sid_hash_alg) {
+                                            bob.sid   = crypto.createHash(bob.peerDAT.custom.sid_hash_alg.toLowerCase()).update(((bob.peerDAT.custom.sid_hash_salt) ? `${message_header.sid}${bob.peerDAT.custom.sid_hash_salt}` : message_header.sid), 'utf8').digest('hex');
+                                        } else {
+                                            bob.sid = message_header.sid;
+                                        } // if ()
+
+                                    //region grpc (bob as grpc-client)
+
+                                    grpc_meta_data.add('sid', bob.sid);
 
                                     const loaded_package = grpc.loadPackageDefinition(proto_loaded);
 
@@ -549,7 +545,7 @@ module.exports = async ({
                                     //});
 
                                     const
-                                        random             = grpc.loadPackageDefinition(proto_loaded).random,
+                                        random             = loaded_package.random,
                                         random_stub        = new random(grpc_server_url, grpc.credentials.createInsecure()),
                                         random_stream_call = await random_stub.stream({
                                             lower: 0.01,
@@ -569,31 +565,29 @@ module.exports = async ({
                                     });
 
                                     const
-                                        calculate            = grpc.loadPackageDefinition(proto_loaded).calculate,
+                                        calculate            = loaded_package.calculate,
                                         calculate_stub       = new calculate(grpc_server_url, grpc.credentials.createInsecure())
                                         , calculate_add_call = await calculate_stub.add((error, Result) => {
                                             console.log(`BOB : calculate.add :: callback <${grpc_server_url}> : Result : <${JSON.stringify(Result)}>`);
                                         }, grpc_meta_data)
                                     ;
-                                    calculate_add_call.on('data', (Result) => {
-                                        console.log(`BOB : calculate.add <${grpc_server_url}> : on : data : <${JSON.stringify(Result)}>`);
+                                    calculate_add_call.on('data', (MetaValue) => {
+                                        console.log(`BOB : calculate.add <${grpc_server_url}> : on : data : <${JSON.stringify(MetaValue)}>`);
                                     });
                                     random_stream_call.on('data', (Random) => {
                                         console.log(`BOB : random.stream <${grpc_server_url}> : on : data : <${JSON.stringify(Random)}>`);
-                                        //calculate_add_call.write({left: -1, right: Random.value}, (error, Result) => {
-                                        //    debugger;
-                                        //});
                                         calculate_add_call.write({
-                                            sid:   (sid_ || bob.sid),
+                                            id:    `${bob.id}calculate/add/${uuid.v4()}`,
+                                            sid:   bob.sid,
                                             left:  1,
                                             right: Random.value
                                         }, grpc_meta_data);
                                     });
 
                                     const
-                                        time                   = grpc.loadPackageDefinition(proto_loaded).time,
-                                        timeConstraint         = grpc.loadPackageDefinition(proto_loaded).TimeConstraint,
-                                        timeConstraintOperator = grpc.loadPackageDefinition(proto_loaded).TimeConstraintOperator,
+                                        time                   = loaded_package.time,
+                                        timeConstraint         = loaded_package.TimeConstraint,
+                                        timeConstraintOperator = loaded_package.TimeConstraintOperator,
                                         time_stub              = new time(grpc_server_url, grpc.credentials.createInsecure()),
                                         time_constraint_call   = await time_stub.constraint( /** TimeConstraint */ {
                                             leftOperand:  {
@@ -606,6 +600,7 @@ module.exports = async ({
                                                 value: "2042-11-15T13:05:47.432Z"
                                             }
                                         }, grpc_meta_data, (error, Value) => {
+                                            console.log(`BOB: gRPC : time_constraint_call: result : <${JSON.stringify(Value)}>`);
                                             debugger;
                                         })
                                     ;

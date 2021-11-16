@@ -79,6 +79,10 @@ class Client extends EventEmitter {
                 value: idscpVersion, enumerable: true
             },
             sid:          {
+                set:           (sid) => {
+                    if (sid && !client.#session.sid)
+                        client.#session.sid = sid;
+                },
                 get:           () => {
                     return client.#session.sid;
                 }, enumerable: true
@@ -91,7 +95,7 @@ class Client extends EventEmitter {
                     return client.#DAT;
                 }
             }, // DAT
-            peerDAT:          {
+            peerDAT:      {
                 get: () => {
                     return client.#session.DAT;
                 }
@@ -186,7 +190,6 @@ class Client extends EventEmitter {
 
 } // Client
 
-exports
-    .Client = Client;
+exports.Client = Client;
 
 // EOF

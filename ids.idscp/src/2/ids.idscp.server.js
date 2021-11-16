@@ -117,7 +117,7 @@ class Server extends http.Server {
                 id      = `${server.#id}session/${uuid.v4()}`,
                 session = new Session({
                     id:           id,
-                    sid:          sidHasher(server.#sid_hash_alg, id, ""),
+                    sid:          sidHasher(server.#sid_hash_alg, id, server.#sid_hash_salt),
                     DAT:          server.#DAT,
                     proto:        server.#proto,
                     fsm:          fsm,
