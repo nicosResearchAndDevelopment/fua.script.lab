@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+//import "fua.idscp.proto";
+
 // REM : this protobuf shows some experimental extension.
 // ######################################################
 //       DON'T USE IT FOR PRODUCTION!!!!!!!!!!!!!!!!!!!!!
@@ -158,6 +160,19 @@ message IdscpAppGoodbye {
 
 // REM : following protobuf-messages and gRPC-services are for developing and testing purposes only!
 
+
+message Value {
+    string type = 1;        // REM : rdf-type, json-ld '@type'
+    string value = 2;
+}
+
+message MetaValue {
+    string id = 1;          // REM : done by service results, (xsd:anyUri)
+    string prov = 2;        // REM : taken from consumers 'input-id' - if present..., (xsd:anyUri)
+    string timestamp = 3;   // REM : service produces this result at (xsd:dateTimeStamp)
+    Value value = 4;
+}
+
 // REM : NOT used so far
 message FuaError {
     string id = 1;
@@ -173,10 +188,12 @@ message FuaHeader {
 
 message FuaMessage {
     // // REM : message id 100001
-    repeated FuaHeader header = 1;
+//    repeated FuaHeader header = 1;
+    repeated IdscpHeader header = 1;
     bytes payload = 2;
 }
 
+//region heartbeat
 message FuaHeartbeat {
     string id = 1;
     string timestamp = 2;
@@ -187,7 +204,9 @@ message noParameter {}
 service heartbeat {
     rpc get(noParameter) returns (FuaHeartbeat) {};
 }
+//endregion heartbeat
 
+//region random
 message RandomRange {
     float lower = 1;
     float upper = 2;
@@ -203,37 +222,23 @@ service random {
     //       puts in a random-range and gets a stream back: random numbers in this range
     rpc stream(RandomRange) returns (stream Random);
 }
+//endregion random
 
-message Values {
-    string id = 1; // REM : we have to put it in here, because we want to find the result, again.
-    string sid = 2; // REM : we have to put it in here, because it is a stream
+//region calculate
+message CalculateParameter {
+    string id = 1;      // REM : we have to put it in here, because we want to find the result, again.
+    string sid = 2;     // REM : we have to put it in here, because it is an upgraded application
     float left = 3;
     float right = 4;
 }
 
-message Result {
-    string type = 1;
-    string value = 2;
-}
-
 service calculate {
     // REM : what it does:
-   //       puts in a value-stream and gets back a stream of results, simply adding
-    //      Values.left + Values.right
-    rpc add(stream Values) returns (stream MetaValue);
+   //        puts in a value-stream and gets back a stream of results, simply adding
+    //       CalculateParameter.left + CalculateParameter.right
+    rpc add(stream CalculateParameter) returns (stream MetaValue);
 }
-
-message MetaValue {
-    string id = 1;
-    string prov = 2;
-    string timestamp = 3;
-    Value value = 4;
-}
-
-message Value {
-    string type = 1;
-    string value = 2;
-}
+//endregion calculate
 
 //region time
 
@@ -249,8 +254,14 @@ message TimeConstraint {
     Value rightOperand = 3;
 } // message TimeConstraint
 
+message TimeOperands {
+    Value leftOperand = 1;
+    Value rightOperand = 3;
+} // message TimeConstraint
+
 service time {
     rpc constraint(TimeConstraint) returns (Value) {};
+    rpc before(TimeOperands) returns (Value) {};
 }
 
 //endregion time

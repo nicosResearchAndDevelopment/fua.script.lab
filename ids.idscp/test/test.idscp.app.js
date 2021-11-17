@@ -295,7 +295,7 @@ module.exports = async ({
             } // if()
             callback(error, result);
 
-        } // heartbeat_get
+        } // heartbeat_get()
 
         function random_stream(call, randomRange) {
 
@@ -329,21 +329,24 @@ module.exports = async ({
                 MetaValue
             ;
             //if (server.hasSession(sid)) { // REM : core-level of access-control
-            call.on('data', function (Values) {
-                if (server.hasSession(Values.sid)) {
+            call.on('data', function (CalculateParameter) {
+                if (server.hasSession(CalculateParameter.sid)) {
                     MetaValue = {
-                        id:        `${server.id}result/${uuid.v4()}`,
-                        prov:      Values.id,
-                        timestamp: util.timestamp(),
-                        value:     {type: "xsd:float", value: `${Values.left + Values.right}`}
+                        id:                     `${server.id}result/${uuid.v4()}`,
+                        prov:                   CalculateParameter.id,
+                        timestamp:              util.timestamp(),
+                        value:     /** Value */ {
+                            type:  "xsd:float",
+                            value: `${CalculateParameter.left + CalculateParameter.right}`
+                        }
                     };
                     //callback(error, Result);
                     call.write(MetaValue);
                 } else {
                     call.end();
                 } // if ()
-            });
-        }
+            }); // call.on('data')
+        } // calculate_add()
 
         //region time
         function time_constraint(call, callback) {
@@ -358,15 +361,34 @@ module.exports = async ({
 
             if (server.hasSession(sid)) { // REM : core-level of access-control
                 Value = {
-                    type:      "xsd:boolean",
-                    value:     "true",
-                    timestamp: util.timestamp()
+                    type:  "xsd:boolean",
+                    value: "true"
                 };
             } else {
                 error = {code: -1}
             } // if()
             callback(error, Value);
-        }
+        } // time_constraint
+
+        function time_before(call, callback) {
+            const
+                sid   = call.metadata.get("sid")?.[0]
+            ;
+            let
+                error = null,
+                Value
+            ;
+
+            if (server.hasSession(sid)) { // REM : core-level of access-control
+                Value = {
+                    type:  "xsd:boolean",
+                    value: "true"
+                };
+            } else {
+                error = {code: -1}
+            } // if()
+            callback(error, Value);
+        } // time_before()
 
         //endregion time
 
@@ -382,10 +404,11 @@ module.exports = async ({
                 add: calculate_add
             });
             grpc_server.addService(proto_loaded.time, {
-                constraint: time_constraint
+                constraint: time_constraint,
+                before:     time_before
             });
             return grpc_server;
-        } // getGrpcServer
+        } // getGrpcServer()
 
         //endregion fn
 
@@ -520,12 +543,12 @@ module.exports = async ({
                                         // TODO : Content-Typing...
                                         message_payload = JSON.parse(decoded[decoded.message].payload.toString());
                                         // TODO : fetch gRPC-port
-                                        debugger;
+                                        //debugger;
                                     } // if ()
 
                                     if (message_header.sid)
                                         if (bob.peerDAT?.custom && bob.peerDAT.custom.sid_hash_alg) {
-                                            bob.sid   = crypto.createHash(bob.peerDAT.custom.sid_hash_alg.toLowerCase()).update(((bob.peerDAT.custom.sid_hash_salt) ? `${message_header.sid}${bob.peerDAT.custom.sid_hash_salt}` : message_header.sid), 'utf8').digest('hex');
+                                            bob.sid = crypto.createHash(bob.peerDAT.custom.sid_hash_alg.toLowerCase()).update(((bob.peerDAT.custom.sid_hash_salt) ? `${message_header.sid}${bob.peerDAT.custom.sid_hash_salt}` : message_header.sid), 'utf8').digest('hex');
                                         } else {
                                             bob.sid = message_header.sid;
                                         } // if ()
@@ -576,7 +599,7 @@ module.exports = async ({
                                     });
                                     random_stream_call.on('data', (Random) => {
                                         console.log(`BOB : random.stream <${grpc_server_url}> : on : data : <${JSON.stringify(Random)}>`);
-                                        calculate_add_call.write({
+                                        calculate_add_call.write({ // CalculateParameter
                                             id:    `${bob.id}calculate/add/${uuid.v4()}`,
                                             sid:   bob.sid,
                                             left:  1,
@@ -601,9 +624,22 @@ module.exports = async ({
                                             }
                                         }, grpc_meta_data, (error, Value) => {
                                             console.log(`BOB: gRPC : time_constraint_call: result : <${JSON.stringify(Value)}>`);
+                                            //debugger;
+                                        }),
+                                        time_before_call   = await time_stub.before( /** TimeOperands */ {
+                                            leftOperand:  {
+                                                type:  "xsd:dateTimeString",
+                                                value: "2021-11-15T13:05:47.432Z"
+                                            },
+                                            rightOperand: {
+                                                type:  "xsd:dateTimeString",
+                                                value: "2042-11-15T13:05:47.432Z"
+                                            }
+                                        }, grpc_meta_data, (error, Value) => {
+                                            console.log(`BOB: gRPC : time_before_call: result : <${JSON.stringify(Value)}>`);
                                             debugger;
                                         })
-                                    ;
+                                    ; // const
 
                                     //debugger;
                                     //endregion grpc (bob as grpc-client)
