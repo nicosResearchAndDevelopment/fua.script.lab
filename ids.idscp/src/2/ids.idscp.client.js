@@ -62,6 +62,7 @@ class Client extends EventEmitter {
             dapsVcPath:    dapsVcPath,
             SKIAKI:        SKIAKI,
             privateKey:    privateKey,
+            //tweak_DAT_custom_max_size: tweak_DAT_custom_max_size,
             requestAgent:  new http.Agent({
                 key:                options.socket.key,
                 cert:               options.socket.cert,

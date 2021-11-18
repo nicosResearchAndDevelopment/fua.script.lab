@@ -1,24 +1,27 @@
 const
     crypto                   = require('crypto'),
     protobuf                 = require("protobufjs"),
-    //grpc          = require("grpc"),
-
+    http                     = require('https'),
+    fetch                    = require('node-fetch'),
+    //region gRPC
+    grpc                     = require('@grpc/grpc-js'),
+    proto_loader             = require('@grpc/proto-loader'),
+    //endregion gRPC
     //
     util                     = require('@nrd/fua.core.util'),
     uuid                     = require("@nrd/fua.core.uuid"),
     //
-    {Client, fsm, idscpUtil} = require(`../src/2/ids.idscp`),
-    //region gRPC
-    grpc                     = require('@grpc/grpc-js'),
-    proto_loader             = require('@grpc/proto-loader')
-    //endregion gRPC
+    {Client, fsm, idscpUtil} = require(`../src/2/ids.idscp`)
 ; // const
 
 module.exports = async ({
-                            server:       server,
+                            server:       idscp_server,
                             proto:        proto,
                             proto_loaded: proto_loaded,
                             grpc_port:    grpc_port,
+                            //region http
+                            http_port: http_port = "8042",
+                            //endregion http
                             // client (bob)
                             client_server_tls_certificates: client_server_tls_certificates,
                             client_tls_certificates:        client_tls_certificates,
@@ -40,16 +43,82 @@ module.exports = async ({
         rooms   = new Map()
     ; // const
 
+    let http_server = null;
+
+    // TODO : shield by config
+    if (true) {
+        http_server = http.createServer({
+            key:                idscp_server.tls_options.key,
+            cert:               idscp_server.tls_options.cert,
+            ca:                 idscp_server.tls_options.ca,
+            requestCert:        idscp_server.tls_options.requestCert,
+            rejectUnauthorized: idscp_server.tls_options.rejectUnauthorized
+        }, async (request, response) => {
+
+            try {
+
+                if (await hasAccess({
+                    ///** BAD *sid */ sid: request.headers.sid + "_42",
+                    sid:      request.headers.sid,
+                    resource: "heartbeat"
+                })) { // REM : core-level of access-control
+                    response.setHeader('Content-Type', 'application/json');
+                    response.write(JSON.stringify(a_heartbeat(42)));
+                } else {
+                    // TODO : how to inform the requester?
+                } // if ()
+                response.end();
+            } catch (jex) {
+                // TODO : error must be logged
+                response.end();
+            } // try
+        }); // http.createServer()
+        http_server.on('connection', (socket) => {
+            //debugger;
+        });
+
+    } // if (shield)
+
     //region fn
+
+    //region fn : top-level
+    async function hasAccess({
+                                 sid:      sid,
+                                 resource: resource
+                             }) {
+        let
+            error  = null,
+            result = false
+        ;
+        try {
+
+            if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
+                result = true;
+            } else {
+                error = {code: -1}
+            } // if()
+        } catch (jex) {
+            throw(jex);
+        } // try
+        if (error)
+            throw(error);
+        return result;
+    } // hasAccess()
+
+    //endregion fn : top-level
+
+    function a_heartbeat(timeout) {
+        return {
+            id:        `${idscp_server.id}heartbeat/${uuid.v4()}`,
+            type:      "urn:idscp:idscp_server:heartbeat",
+            timestamp: util.timestamp(),
+            timeout:   timeout
+        };
+    }
 
     function heartbeat(timeout = 1, callback) {
         setTimeout(() => {
-            callback({
-                id:        `${server.id}heartbeat/${uuid.v4()}`,
-                type:      "urn:idscp:server:heartbeat",
-                timestamp: util.timestamp(),
-                timeout:   timeout
-            });
+            callback(a_heartbeat(timeout));
             heartbeat(timeout, callback);
         }, (timeout * 1000));
     } // heartbeat()
@@ -90,55 +159,70 @@ module.exports = async ({
 
     //endregion fn
 
-    server.on('event', (event) => {
+    idscp_server.on('event', (event) => {
         //console.log(JSON.stringify(event, "", "\t"));
     });
 
-    server.on('error', (error) => {
+    idscp_server.on('error', (error) => {
         debugger;
         console.log(JSON.stringify(error, "", "\t"));
     });
 
-    server.on('connect', (client) => {
-        // REM : at this point client comes to application level
-        debugger;
-        client.on('data', (data) => {
-            debugger;
-        });
-        clients.set(client.id, client);
-    }); // server.on('connect')
-
-    server.on('clientTimeout', (client) => {
-        // REM : at this point client comes to application level
-        debugger;
-        client.on('data', (data) => {
-            debugger;
-        });
-        clients.set(client.id, client);
-    }); // server.on('clientTimeout')
-
-    server.on(fsm.state.STATE_ESTABLISHED, (session) => {
+    idscp_server.on('connection', (session) => {
         // REM : at this point client comes to application level
         //debugger;
+        //client.on('data', (data) => {
+        //    debugger;
+        //});
+        clients.set(session.sid, session);
+    }); // idscp_server.on('connect')
+
+    idscp_server.on('clientTimeout', (client) => {
+        // REM : at this point client comes to application level
+        debugger;
+        client.on('data', (data) => {
+            debugger;
+        });
+        clients.set(client.id, client);
+    }); // idscp_server.on('clientTimeout')
+
+    idscp_server.on(fsm.state.STATE_ESTABLISHED, (session) => {
+        // REM : at this point client comes to application level
+        //debugger;
+        let payload = {
+                upgrade: {
+                    application: [
+                        {
+                            applicationType: "grpc",
+                            version:         "42",
+                            port:            `${grpc_port}`,
+                            service:         [
+                                {
+                                    name: "heartbeat"
+                                },
+                                {
+                                    name: "random"
+                                }
+                            ] // service
+                        }
+
+                    ] // application
+                } // upgrade
+            } //
+        ; // let
+
+        // TODO : access-control to http-server
+        if (http_server) {
+            payload.upgrade.application.push({
+                applicationType: "https",
+                port:            `${http_port}`,
+                version:         "424242",
+                service:         [] // service
+            });
+        } // if ()
+
         const
             proto_message = proto.IdscpMessage,
-            payload       = Buffer.from(JSON.stringify({
-                upgrade: {
-                    application: [{
-                        applicationType: "grpc",
-                        version:         "42",
-                        port:            `${grpc_port}`,
-                        service:         [
-                            {
-                                name: "heartbeat"
-                            },
-                            {
-                                name: "random"
-                            }
-                        ] // service
-                    }] // application
-                } // upgrade
-            }), 'utf-8'),
             message       = proto_message.create({
                 idscpAppWelcome: {
                     header:  [
@@ -149,16 +233,21 @@ module.exports = async ({
                         {name: "Content-Type", value: "application/json"},
                         {name: "Content-Length", value: `${payload.byteLength}`}
                     ],
-                    payload: payload
+                    payload: Buffer.from(JSON.stringify(payload), 'utf-8')
                 }
             }),
             encoded       = proto_message.encode(message).finish()
-            , decoded     = proto_message.decode(encoded)
+            //, decoded     = proto_message.decode(encoded)
         ; // const
         session.write(encoded);
-    }); // server.on('clientTimeout')
 
-    server.on('data', async (session, data) => {
+        // TODO : here we have to find out if given user is allowed to use http
+        //if (http_server)
+        //    http_server.emit('connection', session.socket);
+
+    }); // idscp_server.on(fsm.state.STATE_ESTABLISHED)
+
+    idscp_server.on('data', async (session, data) => {
 
         // REM : here we have to do all this application-stuff
         // REM : at this point idscp is up an running, so, 'fsm.state.STATE_ESTABLISHED' is established...
@@ -235,13 +324,13 @@ module.exports = async ({
             throw(jex);
         } // try
 
-    }); // server.on('data')
+    }); // idscp_server.on('data')
 
-    //let done = await server.refreshDAT("default");
+    //let done = await idscp_server.refreshDAT("default");
 
-    server.listen(async () => {
+    idscp_server.listen(async () => {
 
-        console.log(`ALICE : <${server.id}> : listen on port : ${server.port}`);
+        console.log(`ALICE : <${idscp_server.id}> : listen on port : ${idscp_server.port}`);
 
         heartbeat(1, (data) => {
             //console.log(JSON.stringify(data, "", "\t"));
@@ -285,9 +374,9 @@ module.exports = async ({
                 result
             ;
 
-            if (server.hasSession(sid)) { // REM : core-level of access-control
+            if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
                 result = {
-                    id:        `${server.id}heartbeat/${uuid.v4()}`,
+                    id:        `${idscp_server.id}heartbeat/${uuid.v4()}`,
                     timestamp: util.timestamp()
                 };
             } else {
@@ -315,7 +404,7 @@ module.exports = async ({
                 ; // let
             } // calculate()
 
-            if (server.hasSession(sid)) { // REM : core-level of access-control
+            if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
                 calculate(call.request.lower, call.request.upper, call);
             } else {
                 call.end();
@@ -328,11 +417,11 @@ module.exports = async ({
                 error = null,
                 MetaValue
             ;
-            //if (server.hasSession(sid)) { // REM : core-level of access-control
+            //if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
             call.on('data', function (CalculateParameter) {
-                if (server.hasSession(CalculateParameter.sid)) {
+                if (idscp_server.hasSession(CalculateParameter.sid)) {
                     MetaValue = {
-                        id:                     `${server.id}result/${uuid.v4()}`,
+                        id:                     `${idscp_server.id}result/${uuid.v4()}`,
                         prov:                   CalculateParameter.id,
                         timestamp:              util.timestamp(),
                         value:     /** Value */ {
@@ -359,7 +448,7 @@ module.exports = async ({
                 Value
             ;
 
-            if (server.hasSession(sid)) { // REM : core-level of access-control
+            if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
                 Value = {
                     type:  "xsd:boolean",
                     value: "true"
@@ -379,7 +468,7 @@ module.exports = async ({
                 Value
             ;
 
-            if (server.hasSession(sid)) { // REM : core-level of access-control
+            if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
                 Value = {
                     type:  "xsd:boolean",
                     value: "true"
@@ -414,12 +503,23 @@ module.exports = async ({
 
         const grpc_server = getGrpcServer();
 
-        grpc_server.bindAsync(`${server.host}:${grpc_port}`, grpc.ServerCredentials.createInsecure(), () => {
+        grpc_server.bindAsync(`${idscp_server.host}:${grpc_port}`, grpc.ServerCredentials.createInsecure(), () => {
             grpc_server.start();
         });
 
         //debugger;
-        //endregion gRPC
+
+        //region http
+
+        // TODO : DELETE : idscp_server.http_server = http_server;
+
+        if (http_server) {
+            http_server.listen(http_port, () => {
+                console.log(`ALICE : http server listening on port <${http_port}>`);
+                //debugger;
+            });
+        } // if ()
+        //endregion http
 
         //region client BOB
         if (true) {
@@ -441,9 +541,9 @@ module.exports = async ({
                                 requestCert:        client_request_cert,
                                 rejectUnauthorized: client_reject_unauthorized,
                                 //
-                                //host: `${server.schema}://${server.host}`,
-                                host: server.host,
-                                port: server.port
+                                //host: `${idscp_server.schema}://${idscp_server.host}`,
+                                host: idscp_server.host,
+                                port: idscp_server.port
                             }
                         }, // options
                         proto:   proto,
@@ -534,7 +634,7 @@ module.exports = async ({
 
                                     const
                                         message_header  = idscpUtil.getProtoHeader(decoded[decoded.message].header),
-                                        grpc_server_url = `${server.host}:${grpc_port}`,
+                                        grpc_server_url = `${idscp_server.host}:${grpc_port}`,
                                         grpc_meta_data  = new grpc.Metadata()
                                     ;
                                     let message_payload;
@@ -552,6 +652,31 @@ module.exports = async ({
                                         } else {
                                             bob.sid = message_header.sid;
                                         } // if ()
+
+                                    //region https (bob as http-client)
+
+                                    const http_request_agent = new http.Agent({
+                                        key:                client_tls_certificates.key, // options.socket.key,
+                                        cert:               client_tls_certificates.cert,
+                                        ca:                 client_server_tls_certificates.ca, // /** REM : !!!!!!!!!!!!!!!!!!!!!! */ client_server_tls_certificates.ca],
+                                        requestCert:        client_tls_certificates.requestCert,
+                                        rejectUnauthorized: client_tls_certificates.rejectUnauthorized
+                                    });
+
+                                    // TODO : https://
+                                    const http_server_url = `https://${idscp_server.host}:${http_port}`;
+                                    const response_raw    = await fetch(`${http_server_url}/heartbeat`, {
+                                        agent:   http_request_agent,
+                                        method:  'GET',
+                                        headers: {
+                                            'sid': bob.sid
+                                        }
+                                    });
+                                    const response_json   = await response_raw.json();
+                                    console.log(`BOB : http <${http_server_url}> GET : heartbeat : <${JSON.stringify(response_json)}>`);
+
+                                    debugger;
+                                    //endregion https (bob as http-client)
 
                                     //region grpc (bob as grpc-client)
 
@@ -578,13 +703,13 @@ module.exports = async ({
 
                                     random_stream_call.on('error', (error) => {
                                         debugger;
-                                        console.log(`BOB : random.stream <${grpc_server_url}> : on : error : <${JSON.stringify(error)}>`);
+                                        console.log(`BOB : gRPC : random.stream <${grpc_server_url}> : on : error : <${JSON.stringify(error)}>`);
                                     });
                                     random_stream_call.on('end', () => {
-                                        console.log(`BOB : random.stream <${grpc_server_url}> : on : end`);
+                                        console.log(`BOB : gRPC : random.stream <${grpc_server_url}> : on : end`);
                                     });
                                     random_stream_call.on('status', (status) => {
-                                        console.log(`BOB : random.stream <${grpc_server_url}> : on : status : <${JSON.stringify(status)}>`);
+                                        console.log(`BOB : gRPC : random.stream <${grpc_server_url}> : on : status : <${JSON.stringify(status)}>`);
                                     });
 
                                     const
@@ -595,10 +720,10 @@ module.exports = async ({
                                         }, grpc_meta_data)
                                     ;
                                     calculate_add_call.on('data', (MetaValue) => {
-                                        console.log(`BOB : calculate.add <${grpc_server_url}> : on : data : <${JSON.stringify(MetaValue)}>`);
+                                        console.log(`BOB : gRPC : calculate.add <${grpc_server_url}> : on : data : <${JSON.stringify(MetaValue)}>`);
                                     });
                                     random_stream_call.on('data', (Random) => {
-                                        console.log(`BOB : random.stream <${grpc_server_url}> : on : data : <${JSON.stringify(Random)}>`);
+                                        console.log(`BOB : gRPC : random.stream <${grpc_server_url}> : on : data : <${JSON.stringify(Random)}>`);
                                         calculate_add_call.write({ // CalculateParameter
                                             id:    `${bob.id}calculate/add/${uuid.v4()}`,
                                             sid:   bob.sid,
@@ -626,18 +751,18 @@ module.exports = async ({
                                             console.log(`BOB: gRPC : time_constraint_call: result : <${JSON.stringify(Value)}>`);
                                             //debugger;
                                         }),
-                                        time_before_call   = await time_stub.before( /** TimeOperands */ {
+                                        time_before_call       = await time_stub.before( /** TimeOperands */ {
                                             leftOperand:  {
-                                                type:  "xsd:dateTimeString",
+                                                type:  "xsd:dateTimestamp",
                                                 value: "2021-11-15T13:05:47.432Z"
                                             },
                                             rightOperand: {
-                                                type:  "xsd:dateTimeString",
+                                                type:  "xsd:dateTimestamp",
                                                 value: "2042-11-15T13:05:47.432Z"
                                             }
                                         }, grpc_meta_data, (error, Value) => {
                                             console.log(`BOB: gRPC : time_before_call: result : <${JSON.stringify(Value)}>`);
-                                            debugger;
+                                            //debugger;
                                         })
                                     ; // const
 
@@ -738,13 +863,14 @@ module.exports = async ({
 
                 }); // bob.on(fsm.state.STATE_ESTABLISHED)
 
-                bob.connect(() => {
+                bob.connect((that) => {
                     //debugger;
                 });
                 bob.on('error', (error) => {
                     debugger;
                 });
                 bob.on('end', () => {
+                    // TODO : here we have to stop all activities on WebSocket/ gRPC / http / MQTT / etc.
                     debugger;
                 });
 
@@ -755,7 +881,7 @@ module.exports = async ({
         } // if (shield::BOB)
         //endregion client BOB
 
-    }); // server.listen
+    }); // idscp_server.listen
 
 };
 

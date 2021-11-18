@@ -23,8 +23,8 @@ function sidHasher(sid_hash_alg, sid, salt) {
 }
 
 //endregion fn
-//class Server extends EventEmitter {
-class Server extends http.Server {
+class Server extends EventEmitter {
+//class Server extends http.Server {
 
     #id;
     #schema        = "idscp";
@@ -39,6 +39,8 @@ class Server extends http.Server {
     #sid_hash_alg  = undefined;
     #sid_hash_salt = "";
     #proto;
+
+    #http_server = null;
 
     //#proto_loaded;
 
@@ -152,9 +154,13 @@ class Server extends http.Server {
                 session.on('data', (data) => {
                     server.emit('data', session, data);
                 });
+                server.emit('connection', session);
             });
-            server.#sessions.set(sidHasher(server.#sid_hash_alg, session.sid, server.#sid_hash_salt), {session: session});
-            server.emit('connection', session);
+            if (server.#sid_hash_alg) {
+                server.#sessions.set(sidHasher(server.#sid_hash_alg, session.sid, server.#sid_hash_salt), {session: session});
+            } else {
+                server.#sessions.set(session.sid, {session: session});
+            } // if ()
 
         }); // tls.createServer(options.tls)
 
@@ -178,6 +184,23 @@ class Server extends http.Server {
             },
             idscpVersion: {
                 value: idscpVersion, enumerable: true
+            },
+            tls_options:  {
+                get:           () => {
+                    return {
+                        key:                options.tls.key,
+                        cert:               options.tls.cert,
+                        ca:                 options.tls.ca,
+                        requestCert:        options.tls.requestCert,
+                        rejectUnauthorized: options.tls.rejectUnauthorized
+                    };
+                }, enumerable: false
+            },
+            http_server:  {
+                set:           (server) => {
+                    if (!this.#http_server)
+                        this.#http_server = server;
+                }, enumerable: false
             },
             DAT:          {
                 set:           (dat) => {

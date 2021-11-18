@@ -53,7 +53,8 @@ const
                 sid_hash_salt: sid_hash_salt,
                 dapsCustom:    {
                     sid_hash_alg:  sid_hash_alg,
-                    sid_hash_salt: sid_hash_salt
+                    sid_hash_salt: sid_hash_salt,
+                    http_ca: server_tls_certificates.ca.toString()
                 },
                 options:       {
                     tls:  {

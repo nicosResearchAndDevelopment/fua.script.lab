@@ -85,6 +85,11 @@ class Session extends EventEmitter {
                     return session.#sid;
                 }, enumerable: true
             },
+            socket: {
+                get:           () => {
+                    return session.#socket;
+                }, enumerable: true
+            },
             state: {
                 get:           () => {
                     return session.#state;
