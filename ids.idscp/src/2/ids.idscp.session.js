@@ -31,6 +31,7 @@ class Session extends EventEmitter {
     #proto;
     #state;
     #DAT;
+    #user = null;
     #socket;
 
     constructor({
@@ -68,15 +69,15 @@ class Session extends EventEmitter {
         session.#socket = socket;
 
         Object.defineProperties(session, {
-            id:    {
+            id:           {
                 value: session.#id, enumerable: true
             },
-            idscpVersion:   {
+            idscpVersion: {
                 get:           () => {
                     return idscpVersion;
                 }, enumerable: true
             },
-            sid:   {
+            sid:          {
                 set:           (sid) => {
                     if (sid && !session.#sid)
                         session.#sid = sid;
@@ -85,28 +86,37 @@ class Session extends EventEmitter {
                     return session.#sid;
                 }, enumerable: true
             },
-            socket: {
+            socket:       {
                 get:           () => {
                     return session.#socket;
                 }, enumerable: true
             },
-            state: {
+            user:         {
+                set:           (user) => {
+                    if (user && !session.#user)
+                        session.#user = user;
+                },
+                get:           () => {
+                    return session.#user;
+                }, enumerable: true
+            },
+            state:        {
                 get:           () => {
                     return session.#state;
                 }, enumerable: true
             },
-            DAT:   {
+            DAT:          {
                 get:           () => {
                     return session.#DAT;
                 }, enumerable: true
             },
-            write: {
+            write:        {
                 value:         async (data) => {
                     if (session.#socket)
                         session.#socket.write(data);
                 }, enumerable: false
             }, // write
-            quit:  {
+            quit:         {
                 value:         () => {
                     if (session.#socket)
                         session.#socket.end();
@@ -119,7 +129,7 @@ class Session extends EventEmitter {
                 //console.log(`${session.id} : data <${data.toString()}>`);
                 let
                     is_client = false,
-                    error = null
+                    error     = null
                 ;
 
                 switch (session.#state.type) {

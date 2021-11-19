@@ -2,7 +2,15 @@ const
     crypto                   = require('crypto'),
     protobuf                 = require("protobufjs"),
     http                     = require('https'),
+    //
     fetch                    = require('node-fetch'),
+    express                  = require('express'),
+    bodyParser               = require('body-parser'),
+    //region WebSocket
+    WebSocketServer          = require('websocket').server,
+    WebSocketClient          = require('websocket').client,
+    WebSocketConnection      = require('websocket').connection,
+    //endregion WebSocket
     //region gRPC
     grpc                     = require('@grpc/grpc-js'),
     proto_loader             = require('@grpc/proto-loader'),
@@ -12,7 +20,7 @@ const
     uuid                     = require("@nrd/fua.core.uuid"),
     //
     {Client, fsm, idscpUtil} = require(`../src/2/ids.idscp`)
-; // const
+;
 
 module.exports = async ({
                             server:       idscp_server,
@@ -47,35 +55,108 @@ module.exports = async ({
 
     // TODO : shield by config
     if (true) {
-        http_server = http.createServer({
+        const
+            user_symbol = Symbol("user"),
+            app         = express()
+        ;
+        http_server     = http.createServer({
             key:                idscp_server.tls_options.key,
             cert:               idscp_server.tls_options.cert,
             ca:                 idscp_server.tls_options.ca,
             requestCert:        idscp_server.tls_options.requestCert,
             rejectUnauthorized: idscp_server.tls_options.rejectUnauthorized
-        }, async (request, response) => {
+        }, app);
 
-            try {
-
-                if (await hasAccess({
-                    ///** BAD *sid */ sid: request.headers.sid + "_42",
-                    sid:      request.headers.sid,
-                    resource: "heartbeat"
-                })) { // REM : core-level of access-control
-                    response.setHeader('Content-Type', 'application/json');
-                    response.write(JSON.stringify(a_heartbeat(42)));
-                } else {
-                    // TODO : how to inform the requester?
-                } // if ()
-                response.end();
-            } catch (jex) {
-                // TODO : error must be logged
-                response.end();
-            } // try
-        }); // http.createServer()
         http_server.on('connection', (socket) => {
             //debugger;
         });
+        app.use(async (request, response, next) => {
+            // TODO : this is the point to log the most....
+            const user = idscp_server.getUser(request.headers.sid);
+            if (user) { // REM : core-level of access-control
+                request[user_symbol] = user;
+                next();
+            } else {
+                // TODO : wend error or whatever...
+                response.end();
+            } // if ()
+        });
+        app.get('/heartbeat', async (request, response, next) => {
+            if (await hasAccess({user: request[user_symbol], resource: `https://${idscp_server.host}${request.url}`})) {
+                const payload = JSON.stringify(a_heartbeat(42));
+                response.setHeader('Content-Type', 'application/json');
+                response.setHeader('Date', (new Date).toUTCString());
+                response.setHeader('Content-Length', `${`${Buffer.from(payload, 'utf-8').length}`}`);
+                response.write(payload);
+                response.end();
+            } else {
+                response.end();
+            } // if
+        }); // app.get('/heartbeat')
+
+        if (/** WebSocket */ true) {
+
+            //region fn
+            function originIsAllowed(origin) {
+                // put logic here to detect whether the specified origin is allowed.
+                return true;
+            }
+
+            //endregion fn
+            const ws_server = new WebSocketServer({
+                httpServer: http_server,
+                // You should not use autoAcceptConnections for production
+                // applications, as it defeats all standard cross-origin protection
+                // facilities built into the protocol and the browser.  You should
+                // *always* verify the connection's origin and decide whether or not
+                // to accept it.
+                autoAcceptConnections: false
+            });
+
+            ws_server.on('request', function (ws_request) {
+
+                let ws_connection;
+
+                if (!originIsAllowed(ws_request.origin)) {
+                    // Make sure we only accept requests from an allowed origin
+                    console.log(`ALICE : ws : connection from origin <${ws_request.origin}> rejected.`);
+                    ws_request.reject();
+                    return;
+                } // if ()
+
+                const
+                    headers = (ws_request?.httpRequest?.headers || {}),
+                    user    = idscp_server.getUser(headers.sid)
+                    ///** BAD sid */ user = idscp_server.getUser(headers.sid + "_42")
+                ;
+
+                ws_connection = ws_request.accept('echo-protocol', ws_request.origin)
+                if (user) {
+                    debugger;
+                    console.log(`ALICE : ws : connection accepted : user <${user.id}>.`);
+
+                    ws_connection.on('message', function (message) {
+                        if (message.type === 'utf8') {
+                            console.log(`ALICE : ws : received message (utf-8) <${message.utf8Data}>`);
+                            //debugger;
+                            ws_connection.sendUTF(message.utf8Data);
+                        } else if (message.type === 'binary') {
+                            console.log(`ALICE : ws : received message (binary), length <${message.binaryData.length}> bytes.`);
+                            //debugger;
+                            ws_connection.sendBytes(message.binaryData);
+                        } // if ()
+                    }); // ws_connection.on('message')
+                } else {
+                    ws_connection.close(WebSocketConnection.CLOSE_REASON_GOING_AWAY, `nix da!!!`);
+                } // if ()
+                ws_connection.on('close', function (reasonCode, description) {
+                    console.log(`ALICE : ws : peer <${ws_connection.remoteAddress}> disconnected.`);
+                    debugger;
+                });
+
+            }); // ws_server.on('request')
+
+        } // if (WebSocket shield)
 
     } // if (shield)
 
@@ -83,7 +164,7 @@ module.exports = async ({
 
     //region fn : top-level
     async function hasAccess({
-                                 sid:      sid,
+                                 user:     user,
                                  resource: resource
                              }) {
         let
@@ -92,7 +173,8 @@ module.exports = async ({
         ;
         try {
 
-            if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
+            let access = true;
+            if (access) { // REM : core-level of access-control
                 result = true;
             } else {
                 error = {code: -1}
@@ -654,29 +736,94 @@ module.exports = async ({
                                         } // if ()
 
                                     //region https (bob as http-client)
+                                    if (/** https client */ false) {
+                                        const
+                                            http_request_agent = new http.Agent({
+                                                key:                client_tls_certificates.key, // options.socket.key,
+                                                cert:               client_tls_certificates.cert,
+                                                ca:                 client_server_tls_certificates.ca, // /** REM : !!!!!!!!!!!!!!!!!!!!!! */ client_server_tls_certificates.ca],
+                                                requestCert:        client_tls_certificates.requestCert,
+                                                rejectUnauthorized: client_tls_certificates.rejectUnauthorized
+                                            }),
+                                            http_server_url    = `https://${idscp_server.host}:${http_port}`,
+                                            response_raw       = await fetch(`${http_server_url}/heartbeat`, {
+                                                agent:   http_request_agent,
+                                                method:  'GET',
+                                                headers: {
+                                                    'sid': bob.sid
+                                                } // headers
+                                            }),
+                                            response_json      = await response_raw.json()
+                                        ; // const
+                                        console.log(`BOB : http <${http_server_url}> GET : heartbeat : <${JSON.stringify(response_json)}>`);
 
-                                    const http_request_agent = new http.Agent({
-                                        key:                client_tls_certificates.key, // options.socket.key,
-                                        cert:               client_tls_certificates.cert,
-                                        ca:                 client_server_tls_certificates.ca, // /** REM : !!!!!!!!!!!!!!!!!!!!!! */ client_server_tls_certificates.ca],
-                                        requestCert:        client_tls_certificates.requestCert,
-                                        rejectUnauthorized: client_tls_certificates.rejectUnauthorized
-                                    });
-
-                                    // TODO : https://
-                                    const http_server_url = `https://${idscp_server.host}:${http_port}`;
-                                    const response_raw    = await fetch(`${http_server_url}/heartbeat`, {
-                                        agent:   http_request_agent,
-                                        method:  'GET',
-                                        headers: {
-                                            'sid': bob.sid
-                                        }
-                                    });
-                                    const response_json   = await response_raw.json();
-                                    console.log(`BOB : http <${http_server_url}> GET : heartbeat : <${JSON.stringify(response_json)}>`);
-
-                                    debugger;
+                                        //debugger;
+                                    } // if (/** https client */ false)
                                     //endregion https (bob as http-client)
+
+                                    //region WebSocket client (bob as WebSocketClient)
+                                    const
+                                        ws_agent           = new http.Agent({
+                                            key:                client_tls_certificates.key, // options.socket.key,
+                                            cert:               client_tls_certificates.cert,
+                                            ca:                 client_server_tls_certificates.ca, // /** REM : !!!!!!!!!!!!!!!!!!!!!! */ client_server_tls_certificates.ca],
+                                            requestCert:        client_tls_certificates.requestCert,
+                                            rejectUnauthorized: client_tls_certificates.rejectUnauthorized
+                                        }),
+                                        ws_client          = new WebSocketClient(),
+                                        ws_server_url      = `ws://${idscp_server.host}:${http_port}`,
+                                        ws_http_server_url = `https://${idscp_server.host}:${http_port}`
+                                    ; // const
+
+                                    ws_client.on('connectFailed', function (error) {
+                                        console.log(`BOB : ws : connect error : <${error.toString()}>`);
+                                        debugger;
+                                    });
+
+                                    ws_client.on('connect', function (ws_connection) {
+
+                                        console.log(`BOB : ws : websocket client connected.`);
+
+                                        ws_connection.on('message', function (message) {
+                                            if (message.type === 'utf8') {
+                                                console.log(`BOB : ws : received (utf-8) <${message.utf8Data}>`);
+                                            } else {
+                                                debugger;
+                                            } // if ()
+                                        });
+                                        ws_connection.on('error', function (error) {
+                                            console.log(`BOB : ws : connection error : <${error.toString()}>`);
+                                            debugger;
+                                        });
+                                        ws_connection.on('close', function () {
+                                            console.log(`BOB : ws : connection closed 'echo-protocol'`);
+                                            debugger;
+                                        });
+
+                                        function sendNumber() {
+                                            if (ws_connection.connected) {
+                                                let number = Math.round(Math.random() * 0xFFFFFF);
+                                                ws_connection.sendUTF(number.toString());
+                                                setTimeout(sendNumber, 1000);
+                                            } // if ()
+                                        } // sendNumber()
+                                        sendNumber();
+                                    });
+
+                                    //ws_client.connect(ws_server_url, 'echo-protocol');
+                                    ws_client.connect(ws_server_url, 'echo-protocol', ws_http_server_url,
+                                        /** headers */  {
+                                            sid: bob.sid
+                                        },
+                                        /** requestOptions */ {
+                                            protocol: "https:",
+                                            host:     idscp_server.host,
+                                            port:     http_port,
+                                            agent:    ws_agent
+                                        }
+                                    ); // ws_client.connect()
+
+                                    //endregion WebSocket client  (bob as WebSocketClient)
 
                                     //region grpc (bob as grpc-client)
 
@@ -768,6 +915,7 @@ module.exports = async ({
 
                                     //debugger;
                                     //endregion grpc (bob as grpc-client)
+
                                     break; // idscpWelcome
 
                                 //region custom

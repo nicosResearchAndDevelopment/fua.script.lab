@@ -24,7 +24,7 @@ function sidHasher(sid_hash_alg, sid, salt) {
 
 //endregion fn
 class Server extends EventEmitter {
-//class Server extends http.Server {
+    //class Server extends http.Server {
 
     #id;
     #schema        = "idscp";
@@ -126,8 +126,10 @@ class Server extends EventEmitter {
                     socket:       socket,
                     authenticate: async (token) => {
                         try {
-                            let DAT = undefined;
-                            DAT     = await server.#dapsClient.validateDat(token);
+                            let DAT      = undefined;
+                            DAT          = await server.#dapsClient.validateDat(token);
+                            // TODO : user has to be fetched using by application-domain...
+                            session.user = {id: DAT.referringConnector};
                             return DAT;
                         } catch (jex) {
                             throw(jex);
@@ -220,6 +222,15 @@ class Server extends EventEmitter {
                     } // try
                 }, enumerable: false
             }, //refreshDAT
+            getUser:      {
+                value:         (sid) => {
+                    const session = server.#sessions.get(sid);
+                    let user      = null;
+                    if (session)
+                        user = session.session.user;
+                    return user;
+                }, enumerable: false
+            },
             hasSession:   {
                 value:         (sid) => {
                     return server.#sessions.has(sid);
