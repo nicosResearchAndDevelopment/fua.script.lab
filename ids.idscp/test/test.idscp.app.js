@@ -132,7 +132,7 @@ module.exports = async ({
 
                 ws_connection = ws_request.accept('echo-protocol', ws_request.origin)
                 if (user) {
-                    debugger;
+                    //debugger;
                     console.log(`ALICE : ws : connection accepted : user <${user.id}>.`);
 
                     ws_connection.on('message', function (message) {
