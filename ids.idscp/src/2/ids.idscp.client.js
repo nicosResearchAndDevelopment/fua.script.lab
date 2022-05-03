@@ -146,7 +146,7 @@ class Client extends EventEmitter {
                                         throw(jex);
                                     } // try
                                 }, // authenticate
-                                startedAt:    util.timestamp(),
+                                startedAt:    util.utcDateTime(),
                                 state:        {type: fsm.state.STATE_CLOSED_UNLOCKED},
                                 //
                                 timeout_WAIT_FOR_HELLO: timeout_WAIT_FOR_HELLO,

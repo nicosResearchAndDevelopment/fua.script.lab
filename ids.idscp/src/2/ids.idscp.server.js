@@ -109,7 +109,7 @@ class Server extends EventEmitter {
 
             server.emit('event', {
                 id:        `${server.#id}event/${uuid.v1()}`,
-                timestamp: util.timestamp(),
+                timestamp: util.utcDateTime(),
                 prov:      `${server.#id}listen/}`,
                 step:      "tls-this.on.connect",
                 event:     fsm.event.UPPER_START_HANDSHAKE
@@ -135,7 +135,7 @@ class Server extends EventEmitter {
                             throw(jex);
                         } // try
                     }, // authenticate
-                    startedAt:    util.timestamp(),
+                    startedAt:    util.utcDateTime(),
                     state:        {type: fsm.state.STATE_CLOSED_UNLOCKED},
                     //
                     reconnect:              false, // REM : default, Server doesn't reconnect!
@@ -246,7 +246,7 @@ class Server extends EventEmitter {
                         server.#DAT = await server.#dapsClient.getDat();
                         server.emit('event', {
                             id:        `${server.#id}event/${uuid.v1()}`,
-                            timestamp: util.timestamp(),
+                            timestamp: util.utcDateTime(),
                             prov:      `${server.#id}listen/}`,
                             step:      "before tls-server listens"
                         });

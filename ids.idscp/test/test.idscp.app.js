@@ -193,7 +193,7 @@ module.exports = async ({
         return {
             id:        `${idscp_server.id}heartbeat/${uuid.v4()}`,
             type:      "urn:idscp:idscp_server:heartbeat",
-            timestamp: util.timestamp(),
+            timestamp: util.utcDateTime(),
             timeout:   timeout
         };
     }
@@ -459,7 +459,7 @@ module.exports = async ({
             if (idscp_server.hasSession(sid)) { // REM : core-level of access-control
                 result = {
                     id:        `${idscp_server.id}heartbeat/${uuid.v4()}`,
-                    timestamp: util.timestamp()
+                    timestamp: util.utcDateTime()
                 };
             } else {
                 error = {code: -1}
@@ -478,7 +478,7 @@ module.exports = async ({
                     timeout = (Math.random() * (upper - lower)) + lower,
                     sem     = setTimeout(() => {
                         call.write(/** Random */ {
-                            timestamp: util.timestamp(),
+                            timestamp: util.utcDateTime(),
                             value:     timeout
                         });
                         calculate(lower, upper, call);
@@ -505,7 +505,7 @@ module.exports = async ({
                     MetaValue = {
                         id:                     `${idscp_server.id}result/${uuid.v4()}`,
                         prov:                   CalculateParameter.id,
-                        timestamp:              util.timestamp(),
+                        timestamp:              util.utcDateTime(),
                         value:     /** Value */ {
                             type:  "xsd:float",
                             value: `${CalculateParameter.left + CalculateParameter.right}`
