@@ -1,0 +1,1 @@
+@fua/script.lab
