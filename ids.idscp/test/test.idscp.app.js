@@ -16,8 +16,8 @@ const
     proto_loader             = require('@grpc/proto-loader'),
     //endregion gRPC
     //
-    util                     = require('@nrd/fua.core.util'),
-    uuid                     = require("@nrd/fua.core.uuid"),
+    util                     = require('@fua/core.util'),
+    uuid                     = require("@fua/core.uuid"),
     //
     {Client, fsm, idscpUtil} = require(`../src/2/ids.idscp`)
 ;

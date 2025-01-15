@@ -2,8 +2,8 @@ const
     EventEmitter = require('events'),
     tls          = require('tls'),
     //
-    util         = require('@nrd/fua.core.util'),
-    uuid         = require("@nrd/fua.core.uuid"),
+    util         = require('@fua/core.util'),
+    uuid         = require("@fua/core.uuid"),
     //
     idscpVersion = "2"
 ;

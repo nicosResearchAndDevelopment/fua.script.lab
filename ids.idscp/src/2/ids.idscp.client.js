@@ -3,12 +3,12 @@ const
     tls                       = require('tls'),
     http                      = require('https'),
     //
-    util                      = require('@nrd/fua.core.util'),
-    uuid                      = require("@nrd/fua.core.uuid"),
+    util                      = require('@fua/core.util'),
+    uuid                      = require("@fua/core.uuid"),
     //
     {fsm, wait, idscpVersion} = require(`./ids.idscp.fsm`),
     {Session}                 = require(`./ids.idscp.session`),
-    DAPSClient                = require("@nrd/fua.ids.client.daps")
+    DAPSClient                = require("@fua/ids.client.daps")
     //const _client                 = require("./certs/client.js"); // const
 ;
 

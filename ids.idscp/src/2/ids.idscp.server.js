@@ -6,11 +6,11 @@ const
     http                = require("https"),
     tls                 = require('tls'),
     //
-    util                = require('@nrd/fua.core.util'),
-    uuid                = require("@nrd/fua.core.uuid"),
+    util                = require('@fua/core.util'),
+    uuid                = require("@fua/core.uuid"),
     //
     {fsm, idscpVersion} = require(`./ids.idscp.fsm`),
-    DAPSClient          = require('@nrd/fua.ids.client.daps'),
+    DAPSClient          = require('@fua/ids.client.daps'),
     {Session}           = require(`./ids.idscp.session`)
 ; // const
 
