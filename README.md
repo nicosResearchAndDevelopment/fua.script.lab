@@ -1,1 +1,1 @@
-@fua/script.lab
+# @fua/script.lab
